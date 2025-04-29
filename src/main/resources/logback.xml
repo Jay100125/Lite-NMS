@@ -1,0 +1,16 @@
+<configuration>
+  <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%d{HH:mm:ss.SSS} [%thread] %highlight(%-5level) %cyan(%logger{1}) - %msg%n</pattern>
+    </encoder>
+  </appender>
+  <!--  Suppress Netty logs  -->
+  <logger name="io.netty" level="OFF"/>
+  <!--  Set custom logger for your package  -->
+  <logger name="Jay" level="DEBUG"/>
+  <!--  Root logger  -->
+  <root level="INFO">
+    <appender-ref ref="CONSOLE"/>
+  </root>
+</configuration>
+
