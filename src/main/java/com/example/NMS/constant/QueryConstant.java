@@ -12,21 +12,6 @@ public class QueryConstant
 
   public static final String DELETE_CREDENTIAL = "DELETE FROM credential_profile WHERE id = $1 returning id";
 
-
-//  public static final String INSERT_DISCOVERY = "INSERT INTO discovery_profiles (discovery_profile_name, credential_profile_id, ip, port) VALUES ($1, $2, $3, $4) RETURNING id";
-
-//  public static final String INSERT_DISCOVERY = "INSERT INTO discovery_profiles (discovery_profile_name, credential_profile_id, ip, port) VALUES ($1, $2, $3, $4) RETURNING id";
-
-//  public static final String INSERT_DISCOVERY = "INSERT INTO discovery_profiles (discovery_profile_name, ip, port) VALUES ($1, $2, $3) RETURNING id";
-
-//  public static final String UPDATE_DISCOVERY = "UPDATE discovery_profiles SET discovery_profile_name = $1, credential_profile_id = $2, ip = $3, port = $4 WHERE id = $5 RETURNING id";
-
-//  public static final String UPDATE_DISCOVERY = "UPDATE discovery_profiles SET discovery_profile_name = $1, ip = $2, port = $3 WHERE id = $4 RETURNING id";
-
-//  public static final String GET_ALL_DISCOVERIES = "SELECT * FROM discovery_profiles";
-//
-//  public static final String GET_DISCOVERY_BY_ID = "SELECT * FROM discovery_profiles WHERE id = $1";
-
   public static final String GET_ALL_DISCOVERIES = "SELECT dp.*, array_agg(dcm.credential_profile_id) AS credential_profile_ids " +
     "FROM discovery_profiles dp " +
     "LEFT JOIN discovery_credential_mapping dcm ON dp.id = dcm.discovery_id " +
@@ -40,11 +25,6 @@ public class QueryConstant
 
   public static final String DELETE_DISCOVERY = "DELETE FROM discovery_profiles WHERE id = $1 RETURNING id";
 
-//  public static final String RUN_DISCOVERY = "SELECT dp.ip, dp.port, cpid, cp.cred_data \n" +
-//    "FROM discovery_profiles dp, unnest(dp.credential_profile_id) AS cpid \n" +
-//    "JOIN credential_profile cp ON cp.id = cpid \n" +
-//    "WHERE dp.id = $1";
-
   public static final String RUN_DISCOVERY = "SELECT dp.ip, dp.port, dcm.credential_profile_id AS cpid, cp.cred_data \n" +
     "FROM discovery_profiles dp \n" +
     "JOIN discovery_credential_mapping dcm ON dp.id = dcm.discovery_id \n" +
@@ -52,11 +32,8 @@ public class QueryConstant
     "WHERE dp.id = $1";
 
   public static final String INSERT_DISCOVERY_CREDENTIAL = "INSERT INTO discovery_credential_mapping (discovery_id, credential_profile_id) VALUES ($1, $2)";
+
   public static final String DELETE_DISCOVERY_CREDENTIALS = "DELETE FROM discovery_credential_mapping WHERE discovery_id = $1";
-
-//  public static final String INSERT_DISCOVERY_RESULT = "INSERT INTO discovery_result (discovery_id, ip, port, result, msg, credential_profile_id) " +
-//    "VALUES ($1, $2, $3, $4, $5, $6) RETURNING id";
-
 
   public static final String INSERT_DISCOVERY = "INSERT INTO discovery_profiles (discovery_profile_name, ip, port, status) VALUES ($1, $2, $3, FALSE) RETURNING id";
 
@@ -72,12 +49,14 @@ public class QueryConstant
 
   public static final String INSERT_PROVISIONING_JOB = "INSERT INTO provisioning_jobs (credential_profile_id, ip, port) " +
     "VALUES ($1, $2, $3) RETURNING id";
+
   public static final String INSERT_DEFAULT_METRICS = "INSERT INTO metrics (provisioning_job_id, name, polling_interval) " +
     "VALUES ($1, $2, $3)";
+
   public static final String GET_METRICS_BY_PROVISIONING_JOB = "SELECT * FROM metrics WHERE provisioning_job_id = $1";
+
   public static final String INSERT_POLLING_RESULT = "INSERT INTO polling_results (provisioning_job_id, name, value) " +
     "VALUES ($1, $2, $3) RETURNING id";
-
 
   public static final String DELETE_STALE_METRICS =
     "DELETE FROM metrics " +
