@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -195,41 +196,50 @@ public class Utility {
   }
   public static JsonArray runSSHPlugin(JsonObject pluginJson) {
     JsonArray results = new JsonArray();
+    Process process = null;
     BufferedReader stdInput = null;
     BufferedReader stdError = null;
-    Process process = null;
-
+    OutputStreamWriter stdOutput = null;
+    logger.info("-----------------------------------------------------------");
     try {
-      List<String> commands = new ArrayList<>();
-      commands.add("./plugin/ssh_plugin");
-      String encodedString = Base64.getEncoder().encodeToString(pluginJson.encode().getBytes(StandardCharsets.UTF_8));
-      commands.add(encodedString);
+      // Start the SSH plugin process
+      ProcessBuilder pb = new ProcessBuilder("./plugin/ssh_plugin");
+      process = pb.start();
 
-      ProcessBuilder processBuilder = new ProcessBuilder(commands);
-      process = processBuilder.start();
+      // Write Base64-encoded JSON to stdin
+      stdOutput = new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8);
+      String encodedInput = Base64.getEncoder().encodeToString(pluginJson.encode().getBytes(StandardCharsets.UTF_8));
+      stdOutput.write(encodedInput + "\n");
+      stdOutput.flush();
+      stdOutput.close();
 
+      // Read Base64-encoded JSON results from stdout
       stdInput = new BufferedReader(new InputStreamReader(process.getInputStream()));
-      stdError = new BufferedReader(new InputStreamReader(process.getErrorStream()));
-
       String line;
-      // Read stdout
       while ((line = stdInput.readLine()) != null) {
-        byte[] decodedBytes = Base64.getDecoder().decode(line);
-        String decoder = new String(decodedBytes, StandardCharsets.UTF_8);
-        results.add(new JsonObject(decoder));
+        try {
+          byte[] decodedBytes = Base64.getDecoder().decode(line.trim());
+          String decoded = new String(decodedBytes, StandardCharsets.UTF_8);
+          results.add(new JsonObject(decoded));
+        } catch (Exception e) {
+          logger.error("Failed to decode stdout line '{}': {}", line, e.getMessage());
+        }
       }
-      // Read stderr
+
+      // Read stderr for debugging
+      stdError = new BufferedReader(new InputStreamReader(process.getErrorStream()));
       StringBuilder stderr = new StringBuilder();
       while ((line = stdError.readLine()) != null) {
-        stderr.append(line);
+        stderr.append(line).append("\n");
       }
-      if (stderr.length() > 0) {
-        logger.warn("SSH plugin stderr: {}", stderr.toString());
-      }
+//      if (stderr.length() > 0) {
+//        logger.warn("SSH plugin stderr: {}", stderr.toString());
+//      }
 
+      // Wait for the process to exit
       int exitCode = process.waitFor();
       if (exitCode != 0) {
-        logger.warn("SSH plugin exited with code {} for input: {}", exitCode, pluginJson.encode());
+        logger.warn("SSH plugin exited with code {}", exitCode);
         if (results.isEmpty()) {
           results.add(new JsonObject()
             .put("status", "failed")
@@ -237,6 +247,7 @@ public class Utility {
         }
       }
 
+      // If no results were received, add an error
       if (results.isEmpty()) {
         results.add(new JsonObject()
           .put("status", "failed")
@@ -255,6 +266,9 @@ public class Utility {
         }
         if (stdError != null) {
           stdError.close();
+        }
+        if (stdOutput != null) {
+          stdOutput.close();
         }
         if (process != null && process.isAlive()) {
           process.destroy();

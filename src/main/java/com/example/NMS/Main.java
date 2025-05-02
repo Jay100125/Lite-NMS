@@ -2,6 +2,7 @@ package com.example.NMS;
 
 import com.example.NMS.database.Database;
 //import com.example.NMS.polling.Polling;
+import com.example.NMS.polling.PollingVerticle;
 import io.vertx.core.Vertx;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,12 +25,12 @@ public class Main {
 
         return vertx.deployVerticle(Database.class.getName());
       })
-//      .compose(apires ->
-//      {
-//        LOGGER.info("database verticle is deployed");
-//
-//        return vertx.deployVerticle(Polling.class.getName()).onComplete(res -> LOGGER.info("polling verticle deployed"));
-//      })
+      .compose(apires ->
+      {
+        LOGGER.info("database verticle is deployed");
+
+        return vertx.deployVerticle(PollingVerticle.class.getName()).onComplete(res -> LOGGER.info("polling verticle deployed"));
+      })
       .onComplete(handler -> {
       if (handler.succeeded())
       {
