@@ -94,7 +94,7 @@ public class QueryConstant
     "SELECT id FROM provisioning_jobs WHERE id = $1";
 
   public static final String INSERT_POLLED_DATA =
-    "INSERT INTO polled_data (provisioning_job_id, metric_type, data) " +
+    "INSERT INTO polled_data (job_id, metric_type, data) " +
       "VALUES ($1, $2, $3)";
 
 }

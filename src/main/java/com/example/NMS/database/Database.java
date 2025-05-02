@@ -614,6 +614,11 @@ public class Database extends AbstractVerticle {
           tuple.addLong(params.getLong(0));
           tuple.addString(params.getString(1)); // ip
           tuple.addInteger(params.getInteger(2)); // port
+        } else if (query.equals(QueryConstant.INSERT_POLLED_DATA))
+        {
+          tuple.addLong(params.getLong(0));
+          tuple.addString(params.getString(1)); // metric_name
+          tuple.addString(params.getString(2)); // value
         }
         else {
           logger.error("Unsupported batch query: {}", query);

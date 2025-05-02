@@ -275,6 +275,7 @@
 //}
 package com.example.NMS.polling;
 
+import com.example.NMS.constant.QueryConstant;
 import com.example.NMS.service.QueryProcessor;
 import com.example.NMS.utility.Utility;
 import io.vertx.core.AbstractVerticle;
@@ -557,7 +558,7 @@ import java.util.concurrent.*;
 //  }
 //}
 
-  // TODO
+  // TODO : going to be changed (temporary)
 public class PollingVerticle extends AbstractVerticle {
   private static final Logger logger = LoggerFactory.getLogger(PollingVerticle.class);
 
@@ -569,7 +570,7 @@ public class PollingVerticle extends AbstractVerticle {
   @Override
   public void start() {
     refreshCache();
-    vertx.setPeriodic(300_000, l -> refreshCache()); // Refresh cache every 5 minutes
+    vertx.setPeriodic(10000, l -> refreshCache()); // Refresh cache every 5 minutes
   }
 
   private void refreshCache() {
@@ -633,16 +634,17 @@ public class PollingVerticle extends AbstractVerticle {
             .put("user", jobMetrics.credData.getString("user"))
             .put("password", jobMetrics.credData.getString("password"))
             .put("credential_profile_id", jobId)
-            .put("metric_type", "cpu") // Array of metrics
+            .put("metric_type", jobMetrics.metrics) // Array of metrics
         ));
 
       logger.info(pluginInput.encodePrettily());
       vertx.executeBlocking(promise -> {
         try {
           JsonArray results = Utility.runSSHPlugin(pluginInput);
-//          storePollResults(jobId, results);
 
           logger.info(results.encodePrettily());
+          storePollResults(jobId, results);
+
           promise.complete();
         } catch (Exception e) {
           logger.error("Polling failed for job {}: {}", jobId, e.getMessage());
@@ -652,6 +654,41 @@ public class PollingVerticle extends AbstractVerticle {
     });
   }
 
+  private void storePollResults(Long jobId, JsonArray results) {
+    if (results == null || results.isEmpty()) {
+      logger.warn("No results to store for job {}", jobId);
+      return;
+    }
+
+    JsonArray batchParams = new JsonArray();
+
+    results.forEach(result -> {
+      JsonObject resultObj = (JsonObject) result;
+      if ("success".equals(resultObj.getString("status"))) {
+        JsonObject data = resultObj.getJsonObject("data");
+        if (data != null) {
+          data.fieldNames().forEach(metricName -> {
+            String metricValue = data.getString(metricName);
+            batchParams.add(new JsonArray()
+              .add(jobId)
+              .add(metricName)
+              .add(metricValue)
+            );
+          });
+        }
+      }
+    });
+
+    if (batchParams.isEmpty()) return;
+
+    JsonObject batchQuery = new JsonObject()
+      .put("query", QueryConstant.INSERT_POLLED_DATA)
+      .put("batchParams", batchParams);
+
+    QueryProcessor.executeBatchQuery(batchQuery)
+      .onSuccess(r -> logger.debug("Stored {} metrics for job {}", batchParams.size(), jobId))
+      .onFailure(err -> logger.error("Failed to store polling data: {}", err.getMessage()));
+  }
   static class JobMetrics {
     String ip;
     int port;
