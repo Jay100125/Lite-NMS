@@ -74,6 +74,6 @@ public class QueryConstant
 
   public static final String INSERT_POLLED_DATA =
     "INSERT INTO polled_data (job_id, metric_type, data) " +
-      "VALUES ($1, $2, $3)";
+      "VALUES ($1, $2, $3) returning id";
 
 }
