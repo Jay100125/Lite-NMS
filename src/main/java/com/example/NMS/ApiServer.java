@@ -11,13 +11,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
-public class ApiServer extends AbstractVerticle {
-
+public class ApiServer extends AbstractVerticle
+{
   private static final Logger LOGGER = LoggerFactory.getLogger(ApiServer.class);
 
   @Override
-  public void start(Promise<Void> startPromise){
-
+  public void start(Promise<Void> startPromise)
+  {
     var router = Router.router(vertx);
 
     var discoveryRoute = Router.router(vertx);
