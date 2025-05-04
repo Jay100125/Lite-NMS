@@ -11,6 +11,9 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 
+import static com.example.NMS.constant.Constant.*;
+import static com.example.NMS.constant.QueryConstant.DELETE_PROVISIONING_JOB;
+import static com.example.NMS.constant.QueryConstant.GET_ALL_PROVISIONING_JOBS;
 import static com.example.NMS.service.QueryProcessor.*;
 
 public class Provision {
@@ -33,7 +36,7 @@ public class Provision {
     try
     {
       // Get the discovery profile ID from path parameter
-      var discoveryIdStr = context.pathParam("id");
+      var discoveryIdStr = context.pathParam(ID);
 
       long discoveryId;
 
@@ -49,7 +52,7 @@ public class Provision {
       }
 
       // Get the request body
-      var body = context.getBodyAsJson();
+      var body = context.body().asJsonObject();
 
       if (body == null || !body.containsKey("selected_ips"))
       {
@@ -92,17 +95,12 @@ public class Provision {
     try
     {
       var query = new JsonObject()
-        .put("query", "SELECT pj.*, cp.credential_name, cp.system_type " +
-          "FROM provisioning_jobs pj " +
-          "LEFT JOIN credential_profile cp ON pj.credential_profile_id = cp.id " +
-          "ORDER BY pj.id DESC");
+        .put(QUERY, GET_ALL_PROVISIONING_JOBS);
 
       executeQuery(query)
         .onSuccess(result ->
         {
-          JsonArray resultArray = result.getJsonArray("result");
-
-          if ("Success".equals(result.getString("msg")))
+          if (SUCCESS.equals(result.getString(MSG)))
           {
             context.response()
               .setStatusCode(200)
@@ -143,15 +141,15 @@ public class Provision {
       }
 
       var query = new JsonObject()
-        .put("query", "DELETE FROM provisioning_jobs WHERE id = $1 RETURNING id")
-        .put("params", new JsonArray().add(id));
+        .put(QUERY, DELETE_PROVISIONING_JOB)
+        .put(PARAMS, new JsonArray().add(id));
 
       executeQuery(query)
         .onSuccess(result ->
         {
           var resultArray = result.getJsonArray("result");
 
-          if ("Success".equals(result.getString("msg")) && !resultArray.isEmpty())
+          if (SUCCESS.equals(result.getString(MSG)) && !resultArray.isEmpty())
           {
             context.response()
               .setStatusCode(200)

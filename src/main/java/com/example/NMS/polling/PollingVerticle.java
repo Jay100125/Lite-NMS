@@ -20,20 +20,24 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class PollingVerticle extends AbstractVerticle {
+public class PollingVerticle extends AbstractVerticle
+{
   private static final Logger logger = LoggerFactory.getLogger(PollingVerticle.class);
 
   private final Map<Integer, List<Job>> intervalGroups = new ConcurrentHashMap<>();
+
   private final Map<Integer, Long> activeTimers = new ConcurrentHashMap<>();
 
   private record Job(Long id, String ip, int port, JsonObject credData, List<String> metrics) {}
 
   @Override
-  public void start() {
+  public void start()
+  {
     vertx.setPeriodic(10_000, l -> refreshCache());
   }
 
-  private void refreshCache() {
+  private void refreshCache()
+  {
     String query = "SELECT m.provisioning_job_id, m.polling_interval, " +
       "pj.ip, pj.port, cp.cred_data, ARRAY_AGG(m.name) AS metrics " +
       "FROM metrics m " +
@@ -46,7 +50,8 @@ public class PollingVerticle extends AbstractVerticle {
       .onFailure(err -> logger.error("Cache refresh failed: {}", err.getMessage()));
   }
 
-  private void updateIntervalGroups(JsonArray metrics) {
+  private void updateIntervalGroups(JsonArray metrics)
+  {
     Map<Integer, List<Job>> newGroups = new HashMap<>();
     metrics.forEach(entry -> {
       JsonObject metric = (JsonObject) entry;

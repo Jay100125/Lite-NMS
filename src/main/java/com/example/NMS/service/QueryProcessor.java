@@ -83,12 +83,12 @@ public class QueryProcessor
   public static void runDiscovery(long id, RoutingContext context)
   {
     var fetchQuery = new JsonObject()
-      .put("query", QueryConstant.RUN_DISCOVERY)
-      .put("params", new JsonArray().add(id));
+      .put(QUERY, QueryConstant.RUN_DISCOVERY)
+      .put(PARAMS, new JsonArray().add(id));
 
     var setRunningQuery = new JsonObject()
-      .put("query", QueryConstant.SET_DISCOVERY_STATUS)
-      .put("params", new JsonArray().add(true).add(id));
+      .put(QUERY, QueryConstant.SET_DISCOVERY_STATUS)
+      .put(PARAMS, new JsonArray().add(true).add(id));
 
     executeQuery(setRunningQuery)
       .compose(v -> executeQuery(fetchQuery))
@@ -145,8 +145,8 @@ public class QueryProcessor
           .compose(results ->
           {
             var resetStatusQuery = new JsonObject()
-              .put("query", QueryConstant.SET_DISCOVERY_STATUS)
-              .put("params", new JsonArray().add(true).add(id));
+              .put(QUERY, QueryConstant.SET_DISCOVERY_STATUS)
+              .put(PARAMS, new JsonArray().add(true).add(id));
 
             return executeQuery(resetStatusQuery)
               .map(results);
@@ -158,14 +158,14 @@ public class QueryProcessor
           .setStatusCode(200)
           .putHeader("Content-Type", "application/json")
           .end(new JsonObject()
-            .put("msg", "Success")
+            .put(MSG, SUCCESS)
             .put("results", results)
             .encodePrettily());
       })
       .onFailure(err -> {
         var resetStatusQuery = new JsonObject()
-          .put("query", QueryConstant.SET_DISCOVERY_STATUS)
-          .put("params", new JsonArray().add(false).add(id));
+          .put(QUERY, QueryConstant.SET_DISCOVERY_STATUS)
+          .put(PARAMS, new JsonArray().add(false).add(id));
 
         // Reset discovery status to false
         executeQuery(resetStatusQuery)
@@ -193,10 +193,14 @@ public class QueryProcessor
                                           JsonArray credentials,
                                           long discoveryId,
                                           int port
-                                      ) {
-    return vertx.executeBlocking(() -> {
+                                      )
+  {
+    return vertx.executeBlocking(() ->
+    {
       var reachableIps = new JsonArray();
+
       var discoveryResults = new JsonArray();
+
       var pluginInput = new JsonObject()
         .put("category", "discovery")
         .put("metric.type", "linux")
@@ -204,23 +208,6 @@ public class QueryProcessor
         .put("dis.id", discoveryId)
         .put("targets", new JsonArray());
 
-
-//      for (int i = 0; i < reachResults.size(); i++) {
-//        JsonObject obj = reachResults.getJsonObject(i);
-//        boolean up = obj.getBoolean("reachable");
-//        boolean open = obj.getBoolean("port_open");
-//        if (up && open) {
-//          String ip = obj.getString("ip");
-//          for (int j = 0; j < credentials.size(); j++) {
-//            JsonObject cred = credentials.getJsonObject(j);
-//            pluginInput.getJsonArray("targets").add(new JsonObject()
-//              .put("ip.address", ip)
-//              .put("user", cred.getJsonObject("cred_data").getString("user"))
-//              .put("password", cred.getJsonObject("cred_data").getString("password"))
-//              .put("credential_profile_id", cred.getLong("credential_profile_id")));
-//          }
-//        }
-//      }
 
       logger.info(reachResults.encodePrettily());
 
@@ -231,6 +218,7 @@ public class QueryProcessor
         var up = obj.getBoolean("reachable");
 
         var open = obj.getBoolean("port_open");
+
         if (up && open)
         {
           var ip = obj.getString("ip");

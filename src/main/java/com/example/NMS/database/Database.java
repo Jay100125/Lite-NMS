@@ -23,7 +23,8 @@ public class Database extends AbstractVerticle {
   private static SqlClient client;
 
   @Override
-  public void start(Promise<Void> startPromise) {
+  public void start(Promise<Void> startPromise)
+  {
     var connectOptions = new PgConnectOptions()
       .setHost(DB_HOST)
       .setPort(DB_PORT)
@@ -52,8 +53,7 @@ public class Database extends AbstractVerticle {
 
       for (int i = 0; i < paramArray.size(); i++) {
         Object value = paramArray.getValue(i);
-        if (value instanceof JsonArray) {
-          JsonArray jsonArray = (JsonArray) value;
+        if (value instanceof JsonArray jsonArray) {
           String[] s = new String[jsonArray.size()];
           for (int j = 0; j < jsonArray.size(); j++) {
             s[j] = jsonArray.getString(j);
@@ -82,7 +82,9 @@ public class Database extends AbstractVerticle {
                   jsonArray.add(item);
                 }
                 obj.put(columnName, jsonArray);
-              } else {
+              }
+              else
+              {
                 obj.put(columnName, columnValue);
               }
             }

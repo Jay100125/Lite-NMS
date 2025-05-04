@@ -76,4 +76,13 @@ public class QueryConstant
     "INSERT INTO polled_data (job_id, metric_type, data) " +
       "VALUES ($1, $2, $3) returning id";
 
+  public static final String GET_ALL_PROVISIONING_JOBS =
+    "SELECT pj.*, cp.credential_name, cp.system_type " +
+      "FROM provisioning_jobs pj " +
+      "LEFT JOIN credential_profile cp ON pj.credential_profile_id = cp.id " +
+      "ORDER BY pj.id DESC";
+
+  public static final String DELETE_PROVISIONING_JOB =
+    "DELETE FROM provisioning_jobs WHERE id = $1 RETURNING id";
+
 }

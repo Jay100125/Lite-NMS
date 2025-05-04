@@ -136,7 +136,7 @@ public class Utility
 
     public static JsonArray checkReachability(List<String> ipList, int port) throws Exception
     {
-      JsonArray results = new JsonArray();
+      var results = new JsonArray();
 
       Set<String> aliveIps = new HashSet<>();
 
@@ -154,9 +154,9 @@ public class Utility
         command.add("1000"); // 1000ms
         command.addAll(ipList); // Add all IPs
 
-        ProcessBuilder pb = new ProcessBuilder(command);
+        var pb = new ProcessBuilder(command);
 
-        Process process = pb.start();
+        var process = pb.start();
 
         logger.info("Ip {} fping command: {}", ipList, String.join(" ", command));
         // Read alive IPs from stdout
@@ -174,7 +174,7 @@ public class Utility
         }
 
 
-        for (String ip : aliveIps)
+        for (var ip : aliveIps)
         {
           logger.info("fping alive IP: {}", ip);
 
@@ -192,12 +192,12 @@ public class Utility
           stderr.append(line).append("\n");
         }
 
-        if (stderr.length() > 0)
+        if (!stderr.isEmpty())
         {
           logger.debug("fping stderr: {}", stderr);
         }
 
-        int exitCode = process.waitFor();
+        var exitCode = process.waitFor();
 
         if (exitCode != 0 && aliveIps.isEmpty())
         {
@@ -208,11 +208,11 @@ public class Utility
       {
         logger.error("Error running fping: {}", e.getMessage());
 
-        throw e; // Let caller handle
+//        throw e; // Let caller handle
       }
 
       // Check port for each IP
-      for (String ip : ipList)
+      for (var ip : ipList)
       {
         boolean isReachable = aliveIps.contains(ip);
 
