@@ -358,17 +358,16 @@ public class QueryProcessor
 
   public static void createProvisioningJobs(long discoveryId, JsonArray selectedIps, RoutingContext context)
   {
-    var ipArray = new JsonArray();
-
-    for (var i = 0; i < selectedIps.size(); i++)
-    {
-      ipArray.add(selectedIps.getString(i));
+    if (selectedIps == null || selectedIps.isEmpty()) {
+      sendError(context, 400, "No IPs provided for provisioning");
+      return;
     }
 
-    var validateQuery = new JsonObject()
+    // Query to validate IPs against discovery results
+    JsonObject validateQuery = new JsonObject()
       .put("query", "SELECT ip, result, credential_profile_id, port " +
         "FROM discovery_result WHERE discovery_id = $1 AND ip = ANY($2::varchar[])")
-      .put("params", new JsonArray().add(discoveryId).add(ipArray));
+      .put("params", new JsonArray().add(discoveryId).add(selectedIps));
 
     logger.info(validateQuery.encodePrettily());
 

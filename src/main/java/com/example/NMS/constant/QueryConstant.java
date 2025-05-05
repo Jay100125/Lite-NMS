@@ -8,7 +8,12 @@ public class QueryConstant
 
   public static final String INSERT_CREDENTIAL = "INSERT INTO credential_profile (credential_name, system_type, cred_data) VALUES ($1, $2, $3) returning id";
 
-  public static final String UPDATE_CREDENTIAL = "UPDATE credential_profile SET credential_name = $1, system_type = $2, cred_data = $3 WHERE id = $4 returning id";
+    public static final String UPDATE_CREDENTIAL = "UPDATE credential_profile\n" +
+      "SET credential_name = COALESCE($1, credential_name),\n" +
+      "    system_type = COALESCE($2, system_type),\n" +
+      "    cred_data = COALESCE($3, cred_data)\n" +
+      "WHERE id = $4\n" +
+      "RETURNING id";
 
   public static final String DELETE_CREDENTIAL = "DELETE FROM credential_profile WHERE id = $1 returning id";
 
@@ -46,6 +51,9 @@ public class QueryConstant
     "ON CONFLICT (discovery_id, ip) DO UPDATE " +
     "SET port = EXCLUDED.port, result = EXCLUDED.result, msg = EXCLUDED.msg, credential_profile_id = EXCLUDED.credential_profile_id " +
     "RETURNING id";
+
+  public static final String VALIDATE_DISCOVERY_FROM_RESULT = "SELECT ip, result, credential_profile_id, port" +
+    "FROM discovery_result WHERE discovery_id = $1 AND ip = ANY($2::varchar[])";
 
   public static final String INSERT_PROVISIONING_JOB = "INSERT INTO provisioning_jobs (credential_profile_id, ip, port) " +
     "VALUES ($1, $2, $3) RETURNING id";

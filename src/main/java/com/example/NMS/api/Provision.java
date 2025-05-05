@@ -44,7 +44,7 @@ public class Provision {
       {
         discoveryId = Long.parseLong(discoveryIdStr);
       }
-      catch (NumberFormatException e)
+      catch (Exception e)
       {
         sendError(context, 400, "Invalid discovery ID");
 
@@ -54,14 +54,14 @@ public class Provision {
       // Get the request body
       var body = context.body().asJsonObject();
 
-      if (body == null || !body.containsKey("selected_ips"))
+      if (body == null || !body.containsKey(SELECTED_IPS))
       {
         sendError(context, 400, "Missing selected IPs");
 
         return;
       }
 
-      var selectedIps = body.getJsonArray("selected_ips");
+      var selectedIps = body.getJsonArray(SELECTED_IPS);
 
       if (selectedIps == null || selectedIps.isEmpty())
       {
@@ -90,6 +90,8 @@ public class Provision {
         logger.error(e.getMessage());
     }
   }
+
+
   public void handleGetAllProvisions(RoutingContext context)
   {
     try

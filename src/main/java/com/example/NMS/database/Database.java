@@ -45,17 +45,26 @@ public class Database extends AbstractVerticle {
 
     startPromise.complete();
 
-    vertx.eventBus().consumer(EVENTBUS_ADDRESS, message -> {
+    vertx.eventBus().consumer(EVENTBUS_ADDRESS, message ->
+    {
       JsonObject input = (JsonObject) message.body();
+
       var query = input.getString("query");
+
       var paramArray = input.getJsonArray("params", new JsonArray());
+
       var params = Tuple.tuple();
 
-      for (int i = 0; i < paramArray.size(); i++) {
+      for (int i = 0; i < paramArray.size(); i++)
+      {
         Object value = paramArray.getValue(i);
-        if (value instanceof JsonArray jsonArray) {
+
+        if (value instanceof JsonArray jsonArray)
+        {
           String[] s = new String[jsonArray.size()];
-          for (int j = 0; j < jsonArray.size(); j++) {
+
+          for (int j = 0; j < jsonArray.size(); j++)
+          {
             s[j] = jsonArray.getString(j);
           }
           params.addValue(s);
@@ -67,18 +76,29 @@ public class Database extends AbstractVerticle {
       }
 
       client.preparedQuery(query).execute(params, ar -> {
-        if (ar.succeeded()) {
+        if (ar.succeeded())
+        {
           var rows = ar.result();
+
           var jsonRows = new JsonArray();
+
           rows.forEach(row -> {
+
             var obj = new JsonObject();
-            for (int i = 0; i < row.size(); i++) {
+
+            for (int i = 0; i < row.size(); i++)
+            {
               String columnName = row.getColumnName(i);
+
               Object columnValue = row.getValue(i);
-              if (columnValue != null && columnValue.getClass().isArray()) {
+              if (columnValue != null && columnValue.getClass().isArray())
+              {
                 Object[] array = (Object[]) columnValue;
+
                 JsonArray jsonArray = new JsonArray();
-                for (Object item : array) {
+
+                for (Object item : array)
+                {
                   jsonArray.add(item);
                 }
                 obj.put(columnName, jsonArray);
@@ -94,8 +114,11 @@ public class Database extends AbstractVerticle {
           message.reply(new JsonObject()
             .put("msg", "Success")
             .put("result", jsonRows));
-        } else {
+        }
+        else
+        {
           logger.error("❌ Query failed: {}", ar.cause().getMessage());
+
           message.reply(new JsonObject()
             .put("msg", "fail")
             .put("ERROR", ar.cause().getMessage()));
@@ -104,12 +127,17 @@ public class Database extends AbstractVerticle {
     });
 
     vertx.eventBus().consumer(EVENTBUS_BATCH_ADDRESS, message -> {
+
       JsonObject request = (JsonObject) message.body();
+
       String query = request.getString("query");
+
       JsonArray batchParams = request.getJsonArray("batchParams");
 
-      if (query == null || batchParams == null || batchParams.isEmpty()) {
+      if (query == null || batchParams == null || batchParams.isEmpty())
+      {
         logger.error("Invalid batch request: query={}, batchParams={}", query, batchParams);
+
         message.reply(new JsonObject()
           .put("msg", "Error")
           .put("ERROR", "Missing query or batchParams"));
@@ -117,46 +145,75 @@ public class Database extends AbstractVerticle {
       }
 
       List<Tuple> batch = new ArrayList<>();
-      for (int i = 0; i < batchParams.size(); i++) {
+
+      for (int i = 0; i < batchParams.size(); i++)
+      {
         JsonArray params = batchParams.getJsonArray(i);
         Tuple tuple = Tuple.tuple();
 
-        if (query.equals(QueryConstant.INSERT_DISCOVERY_CREDENTIAL)) {
+        if (query.equals(QueryConstant.INSERT_DISCOVERY_CREDENTIAL))
+        {
           tuple.addLong(params.getLong(0)); // discovery_id
+
           tuple.addLong(params.getLong(1)); // credential_profile_id
-        } else if (query.equals(QueryConstant.INSERT_DISCOVERY_RESULT)) {
+        }
+        else if (query.equals(QueryConstant.INSERT_DISCOVERY_RESULT))
+        {
           tuple.addLong(params.getLong(0)); // discovery_id
+
           tuple.addString(params.getString(1)); // ip
+
           tuple.addInteger(params.getInteger(2)); // port
+
           tuple.addString(params.getString(3)); // result
+
           tuple.addString(params.getString(4)); // msg (nullable)
+
           Object credId = params.getValue(5); // credential_profile_id (nullable)
+
           tuple.addLong(credId instanceof Number ? ((Number) credId).longValue() : null);
-        } else if (query.equals(QueryConstant.INSERT_DEFAULT_METRICS) ||
-                   query.equals(QueryConstant.UPSERT_METRICS)) {
+        }
+        else if (query.equals(QueryConstant.INSERT_DEFAULT_METRICS) ||
+                   query.equals(QueryConstant.UPSERT_METRICS))
+        {
           tuple.addLong(params.getLong(0)); // provisioning_job_id
+
           tuple.addString(params.getString(1)); // metric_name
+
           tuple.addInteger(params.getInteger(2)); // polling_interval
-        } else if (query.equals(QueryConstant.INSERT_POLLING_RESULT)) {
+        }
+        else if (query.equals(QueryConstant.INSERT_POLLING_RESULT))
+        {
           tuple.addLong(params.getLong(0)); // provisioning_job_id
+
           tuple.addString(params.getString(1)); // metric_name
+
           tuple.addJsonObject(params.getJsonObject(2)); // value
-        } else if (query.equals(QueryConstant.INSERT_PROVISIONING_JOB))
+        }
+        else if (query.equals(QueryConstant.INSERT_PROVISIONING_JOB))
         {
           tuple.addLong(params.getLong(0));
+
           tuple.addString(params.getString(1)); // ip
+
           tuple.addInteger(params.getInteger(2)); // port
-        } else if (query.equals(QueryConstant.INSERT_POLLED_DATA))
+        }
+        else if (query.equals(QueryConstant.INSERT_POLLED_DATA))
         {
           tuple.addLong(params.getLong(0));
+
           tuple.addString(params.getString(1)); // metric_name
+
           tuple.addString(params.getString(2)); // value
         }
-        else {
+        else
+        {
           logger.error("Unsupported batch query: {}", query);
+
           message.reply(new JsonObject()
             .put("msg", "Error")
             .put("ERROR", "Unsupported batch query: " + query));
+
           return;
         }
         batch.add(tuple);
@@ -166,16 +223,21 @@ public class Database extends AbstractVerticle {
 
       client.preparedQuery(query)
         .executeBatch(batch)
-        .onSuccess(result -> {
+        .onSuccess(result ->
+        {
           logger.info("Batch insert executed, inserted {} rows", batch.size());
+
           JsonArray insertedIds = new JsonArray();
+
           result.forEach(row -> insertedIds.add(row.getLong("id")));
+
           message.reply(new JsonObject()
             .put("msg", "Success")
             .put("insertedIds", insertedIds));
         })
         .onFailure(err -> {
           logger.warn("Batch insert failed: {}, error: {}", query, err.getMessage());
+
           message.reply(new JsonObject()
             .put("msg", "Error")
             .put("ERROR", err.getMessage()));

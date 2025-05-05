@@ -48,5 +48,7 @@ public class Constant {
 
   public static final String PORT = "port";
 
+  public static final String SELECTED_IPS = "selected_ips";
+
 
 }

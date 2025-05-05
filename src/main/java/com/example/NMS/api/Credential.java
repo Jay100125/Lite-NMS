@@ -1,6 +1,8 @@
 package com.example.NMS.api;
 
 import com.example.NMS.constant.QueryConstant;
+import com.example.NMS.service.QueryProcessor;
+import io.vertx.core.Future;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
@@ -110,12 +112,12 @@ public class Credential
    * @param context The routing context.
    */
 
-  // TODO: only take required fields
   private void handlePatchCredential(RoutingContext context)
   {
     try
     {
-      var idStr = context.pathParam(ID);
+      // Parse and validate ID
+      String idStr = context.pathParam(ID);
 
       long id;
 
@@ -130,7 +132,8 @@ public class Credential
         return;
       }
 
-      var body = context.body().asJsonObject();
+      // Parse request body
+      JsonObject body = context.body().asJsonObject();
 
       if (body == null || body.isEmpty())
       {
@@ -139,24 +142,22 @@ public class Credential
         return;
       }
 
-
-      var credentialName = body.getString(CREDENTIAL_NAME);
-
-      var sysType = body.getString(SYSTEM_TYPE);
-
-      var credData = body.getJsonObject(CRED_DATA);
-
       // Validate sys_type if provided
+      String sysType = body.getString(SYSTEM_TYPE);
+
       if (sysType != null && !sysType.isEmpty())
       {
         if (!sysType.equals("windows") && !sysType.equals("linux") && !sysType.equals("snmp"))
         {
+
           sendError(context, 400, "Invalid sys_type");
 
           return;
         }
       }
 
+      // Validate cred_data if provided
+      JsonObject credData = body.getJsonObject(CRED_DATA);
 
       if (credData != null && (!credData.containsKey(USER) || !credData.containsKey(PASSWORD)))
       {
@@ -165,21 +166,35 @@ public class Credential
         return;
       }
 
+      // Check if credential exists
+      JsonObject existsQuery = new JsonObject()
+        .put(QUERY, GET_CREDENTIAL_BY_ID)
+        .put(PARAMS, new JsonArray().add(id));
 
-      var params = new JsonArray()
-        .add(credentialName != null && !credentialName.isEmpty() ? credentialName : null)
-        .add(sysType != null && !sysType.isEmpty() ? sysType : null)
-        .add(credData != null ? credData : null)
-        .add(id);
-
-      var updateQuery = new JsonObject()
-        .put("query", UPDATE_CREDENTIAL)
-        .put("params", params);
-
-      executeQuery(updateQuery)
-        .onSuccess(result ->
+      QueryProcessor.executeQuery(existsQuery)
+        .compose(result ->
         {
-          var resultArray = result.getJsonArray("result");
+          if (!SUCCESS.equals(result.getString(MSG)) || result.getJsonArray("result").isEmpty())
+          {
+            return Future.failedFuture("Credential not found");
+          }
+
+          // Prepare update parameters
+          JsonArray params = new JsonArray()
+            .add(body.getString(CREDENTIAL_NAME)) // Can be null
+            .add(sysType) // Can be null
+            .add(credData) // Can be null
+            .add(id);
+
+          JsonObject updateQuery = new JsonObject()
+            .put("query", UPDATE_CREDENTIAL)
+            .put("params", params);
+
+          return QueryProcessor.executeQuery(updateQuery);
+        })
+        .onSuccess(result -> {
+
+          JsonArray resultArray = result.getJsonArray("result");
 
           if (SUCCESS.equals(result.getString(MSG)) && !resultArray.isEmpty())
           {
@@ -200,7 +215,11 @@ public class Credential
         {
           logger.error("Failed to update credential: {}", err.getMessage(), err);
 
-          sendError(context, 500, "Database error: " + err.getMessage());
+          int statusCode = err.getMessage().equals("Credential not found") ? 404 : 500;
+
+          String errorMsg = statusCode == 404 ? err.getMessage() : "Database error: " + err.getMessage();
+
+          sendError(context, statusCode, errorMsg);
         });
     }
     catch (Exception e)
@@ -377,6 +396,7 @@ public class Credential
 
   private void sendError(RoutingContext ctx, int statusCode, String errorMessage)
   {
+    logger.info(errorMessage);
     ctx.response()
       .setStatusCode(statusCode)
       .putHeader("Content-Type", "application/json")
