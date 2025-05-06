@@ -484,7 +484,8 @@ public class QueryProcessor
                   var ip = validIps.getString(j);
                   insertedRecords.add(new JsonObject()
                     .put("ip", ip)
-                    .put("status", "created"));
+                    .put("status", "created")
+                          .put("provisioning_job_id", insertedIds.getLong(j)));
                 }
                 return new JsonObject()
                   .put("validIps", validIps)

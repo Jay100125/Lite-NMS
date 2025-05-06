@@ -204,7 +204,7 @@ public class Database extends AbstractVerticle {
 
           tuple.addString(params.getString(1)); // metric_name
 
-          tuple.addString(params.getString(2)); // value
+          tuple.addJsonObject(params.getJsonObject(2)); // value
         }
         else
         {

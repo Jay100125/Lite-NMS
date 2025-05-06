@@ -71,18 +71,19 @@ public class QueryConstant
       "WHERE provisioning_job_id = $1 " +
       "AND name NOT IN (SELECT UNNEST($2::varchar[])::metric_name) returning provisioning_job_id as id";
 
-  public static final String UPSERT_METRICS =
-    "INSERT INTO metrics (provisioning_job_id, name, polling_interval) " +
-      "VALUES ($1, $2, $3) " +
-      "ON CONFLICT (provisioning_job_id, name) " +
-      "DO UPDATE SET polling_interval = EXCLUDED.polling_interval returning provisioning_job_id as id";
+  public static final String UPSERT_METRICS = """
+            INSERT INTO metrics (provisioning_job_id, name, polling_interval)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (provisioning_job_id, name)
+            DO UPDATE SET polling_interval = EXCLUDED.polling_interval
+            RETURNING metric_id as id""";
 
   public static final String VALIDATE_PROVISIONING_JOB =
     "SELECT id FROM provisioning_jobs WHERE id = $1";
 
   public static final String INSERT_POLLED_DATA =
     "INSERT INTO polled_data (job_id, metric_type, data) " +
-      "VALUES ($1, $2, $3) returning id";
+      "VALUES ($1, $2, $3::jsonb) returning id";
 
   public static final String GET_ALL_PROVISIONING_JOBS =
     "SELECT pj.*, cp.credential_name, cp.system_type " +
@@ -92,5 +93,9 @@ public class QueryConstant
 
   public static final String DELETE_PROVISIONING_JOB =
     "DELETE FROM provisioning_jobs WHERE id = $1 RETURNING id";
+
+  public static final String GET_ALL_POLLED_DATA = """
+            SELECT id, job_id, metric_type, data, TO_CHAR(polled_at, 'YYYY-MM-DD"T"HH24:MI:SS') AS polled_at
+            FROM polled_data""";
 
 }

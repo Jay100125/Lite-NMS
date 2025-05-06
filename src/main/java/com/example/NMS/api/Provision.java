@@ -29,6 +29,8 @@ public class Provision {
     provisionRouter.delete("/api/provision/:id").handler(this::handleDeleteProvision);
 
     provisionRouter.put("/api/provision/:id/metrics").handler(this::handleUpdateMetrics);
+
+    provisionRouter.get("/api/polled-data").handler(this::handleGetAllPolledData);
   }
 
   public void handlePostProvision(RoutingContext context)
@@ -270,6 +272,33 @@ public class Provision {
       sendError(context, 500, "Internal server error");
     }
   }
+
+  public void handleGetAllPolledData(RoutingContext context) {
+    try {
+      var query = new JsonObject()
+        .put(QUERY, QueryConstant.GET_ALL_POLLED_DATA);
+
+      executeQuery(query)
+        .onSuccess(result -> {
+          if (SUCCESS.equals(result.getString(MSG))) {
+            context.response()
+              .setStatusCode(200)
+              .putHeader("Content-Type", "application/json")
+              .end(new JsonObject()
+                .put("msg", "Success")
+                .put("results", result.getJsonArray("result"))
+                .encodePrettily());
+          } else {
+            sendError(context, 404, "No polled data found");
+          }
+        })
+        .onFailure(err -> sendError(context, 500, "Database query failed: " + err.getMessage()));
+    } catch (Exception e) {
+      logger.error("Error fetching polled data: {}", e.getMessage());
+      sendError(context, 500, "Internal server error");
+    }
+  }
+
 
   private void sendError(RoutingContext ctx, int statusCode, String errorMessage)
   {
