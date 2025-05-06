@@ -53,9 +53,13 @@ public class PollingVerticle extends AbstractVerticle
   private void updateIntervalGroups(JsonArray metrics)
   {
     Map<Integer, List<Job>> newGroups = new HashMap<>();
-    metrics.forEach(entry -> {
+
+    metrics.forEach(entry ->
+    {
       JsonObject metric = (JsonObject) entry;
+
       int interval = metric.getInteger("polling_interval");
+
       newGroups.computeIfAbsent(interval, k -> new ArrayList<>())
         .add(new Job(
           metric.getLong("provisioning_job_id"),
@@ -67,20 +71,28 @@ public class PollingVerticle extends AbstractVerticle
     });
 
     // Update timers only if intervals change
-    if (!intervalGroups.keySet().equals(newGroups.keySet())) {
+    if (!intervalGroups.keySet().equals(newGroups.keySet()))
+    {
       // Cancel timers for removed intervals
-      new ArrayList<>(activeTimers.keySet()).forEach(interval -> {
-        if (!newGroups.containsKey(interval)) {
+      new ArrayList<>(activeTimers.keySet()).forEach(interval ->
+      {
+        if (!newGroups.containsKey(interval))
+        {
           vertx.cancelTimer(activeTimers.remove(interval));
+
           logger.info("Cancelled timer for interval {}s", interval);
         }
       });
 
       // Schedule timers for new intervals
-      newGroups.keySet().forEach(interval -> {
-        if (!activeTimers.containsKey(interval)) {
+      newGroups.keySet().forEach(interval ->
+      {
+        if (!activeTimers.containsKey(interval))
+        {
           long timerId = vertx.setPeriodic(interval * 1000, l -> pollInterval(interval, intervalGroups.get(interval)));
+
           activeTimers.put(interval, timerId);
+
           logger.info("Scheduled timer for interval {}s", interval);
         }
       });
@@ -88,18 +100,25 @@ public class PollingVerticle extends AbstractVerticle
 
     // Always update the cache with the latest jobs
     intervalGroups.clear();
+
     intervalGroups.putAll(newGroups);
   }
 
-  private void pollInterval(int interval, List<Job> jobs) {
-    try {
+  private void pollInterval(int interval, List<Job> jobs)
+  {
+    try
+    {
       List<String> ips = jobs.stream().map(Job::ip).toList();
+
       JsonArray reachResults = Utility.checkReachability(ips, 22);
 
       JsonArray targets = new JsonArray();
+
       reachResults.forEach(result -> {
         JsonObject res = (JsonObject) result;
-        if (res.getBoolean("reachable") && res.getBoolean("port_open")) {
+
+        if (res.getBoolean("reachable") && res.getBoolean("port_open"))
+        {
           jobs.stream()
             .filter(job -> job.ip().equals(res.getString("ip")))
             .findFirst()
@@ -107,8 +126,10 @@ public class PollingVerticle extends AbstractVerticle
         }
       });
 
-      if (targets.isEmpty()) {
+      if (targets.isEmpty())
+      {
         logger.info("No reachable targets for {}s interval", interval);
+
         return;
       }
 
@@ -118,17 +139,24 @@ public class PollingVerticle extends AbstractVerticle
 
       vertx.executeBlocking(promise -> {
         logger.info("Plugin input: {}", pluginInput.encodePrettily());
+
         JsonArray results = Utility.runSSHPlugin(pluginInput);
+
         logger.info("Plugin result: {}", results.encodePrettily());
+
         storePollResults(results);
+
         promise.complete();
       }, false);
-    } catch (Exception e) {
+    }
+    catch (Exception e)
+    {
       logger.error("Polling failed for interval {}s: {}", interval, e.getMessage());
     }
   }
 
-  private JsonObject createTargetJson(Job job) {
+  private JsonObject createTargetJson(Job job)
+  {
     return new JsonObject()
       .put("ip.address", job.ip())
       .put("port", job.port())
@@ -138,18 +166,27 @@ public class PollingVerticle extends AbstractVerticle
       .put("metric_type", new JsonArray(job.metrics()));
   }
 
-  private void storePollResults(JsonArray results) {
+  private void storePollResults(JsonArray results)
+  {
     if (results == null || results.isEmpty()) return;
 
     JsonArray batchParams = new JsonArray();
+
     results.forEach(result -> {
       JsonObject resultObj = (JsonObject) result;
+
       logger.info("*******************************************************");
+
       logger.info("Result: {}", resultObj.encodePrettily());
-      if ("success".equals(resultObj.getString("status"))) {
+
+      if ("success".equals(resultObj.getString("status")))
+      {
         Long jobId = resultObj.getLong("provision_profile_id");
+
         JsonObject data = resultObj.getJsonObject("data");
-        if (data != null) {
+
+        if (data != null)
+        {
           data.fieldNames().forEach(metric ->
             batchParams.add(new JsonArray()
               .add(jobId)
