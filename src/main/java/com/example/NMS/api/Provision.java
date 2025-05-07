@@ -1,7 +1,9 @@
 package com.example.NMS.api;
 
+import com.example.NMS.MetricJobCache;
 import com.example.NMS.constant.QueryConstant;
 import com.example.NMS.utility.Utility;
+import io.vertx.core.Future;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
@@ -155,6 +157,8 @@ public class Provision {
 
           if (SUCCESS.equals(result.getString(MSG)) && !resultArray.isEmpty())
           {
+            MetricJobCache.removeMetricJobsByProvisioningJobId(id);
+
             context.response()
               .setStatusCode(200)
               .end(result.encodePrettily());
@@ -256,6 +260,92 @@ public class Provision {
 
       executeQuery(deleteStaleQuery)
         .compose(v -> executeBatchQuery(upsertQuery))
+//        .onSuccess(v -> context.response()
+//          .setStatusCode(200)
+//          .putHeader("Content-Type", "application/json")
+//          .end(new JsonObject()
+//            .put("msg", "Success")
+//            .put("provisioning_job_id", provisioningJobId)
+//            .encodePrettily()))
+//        .onFailure(err -> sendError(context, 500, "Failed to update metrics: " + err.getMessage()));
+
+        .compose(v ->
+        {
+          // Combined query to fetch provisioning job and cred_data
+          JsonObject combinedQuery = new JsonObject()
+            .put("query", "SELECT pj.ip, pj.port, pj.credential_profile_id, cp.cred_data AS cred_data " +
+              "FROM provisioning_jobs pj " +
+              "LEFT JOIN credential_profile cp ON pj.credential_profile_id = cp.id " +
+              "WHERE pj.id = $1")
+            .put("params", new JsonArray().add(provisioningJobId));
+
+          return executeQuery(combinedQuery)
+            .compose(jobResult ->
+            {
+              if (!SUCCESS.equals(jobResult.getString("msg")) || jobResult.getJsonArray("result").isEmpty())
+              {
+                return Future.failedFuture("Provisioning job not found");
+              }
+
+              var job = jobResult.getJsonArray("result").getJsonObject(0);
+              var ip = job.getString("ip");
+              var port = job.getInteger("port");
+              var credData = job.getJsonObject("cred_data", new JsonObject());
+
+              // Fetch current metric IDs
+              JsonObject fetchMetricsQuery = new JsonObject()
+                .put("query", "SELECT metric_id, name, polling_interval FROM metrics WHERE provisioning_job_id = $1")
+                .put("params", new JsonArray().add(provisioningJobId));
+
+              return executeQuery(fetchMetricsQuery)
+                .compose(metricsResult ->
+                {
+                  var currentMetrics = metricsResult.getJsonArray("result");
+
+                  // Remove stale metric jobs from cache
+                  var metricJobs = MetricJobCache.getMetricJobsByProvisioningJobId(provisioningJobId);
+                  for (var entry : metricJobs.entrySet())
+                  {
+                    var metricId = entry.getKey();
+                    var metricJob = entry.getValue();
+                    var metricName = metricJob.getString("metric_name");
+                    if (!metricNames.contains(metricName))
+                    {
+                      MetricJobCache.removeMetricJob(metricId);
+                    }
+                  }
+
+                  // Add or update metric jobs in cache
+                  for (int i = 0; i < currentMetrics.size(); i++)
+                  {
+                    logger.info("(((((((((((((((((((((((((((9999");
+                    var metric = currentMetrics.getJsonObject(i);
+                    logger.info("(((((((((((((((((((((((((((1");
+
+                    var metricId = metric.getLong("metric_id");
+                    logger.info("(((((((((((((((((((((((((((2");
+
+                    var metricName = metric.getString("name");
+                    logger.info("(((((((((((((((((((((((((((3");
+
+                    var pollingInterval = metric.getInteger("polling_interval");
+                    logger.info("(((((((((((((((((((((((((((4");
+
+                    MetricJobCache.updateMetricJob(
+                      metricId,
+                      provisioningJobId,
+                      metricName,
+                      pollingInterval,
+                      ip,
+                      port,
+                      credData
+                    );
+                  }
+
+                  return Future.succeededFuture();
+                });
+            });
+        })
         .onSuccess(v -> context.response()
           .setStatusCode(200)
           .putHeader("Content-Type", "application/json")
@@ -263,7 +353,7 @@ public class Provision {
             .put("msg", "Success")
             .put("provisioning_job_id", provisioningJobId)
             .encodePrettily()))
-        .onFailure(err -> sendError(context, 500, "Failed to update metrics: " + err.getMessage()));
+        .onFailure(err -> sendError(context, err.getMessage().contains("not found") ? 404 : 500, "Failed to update metrics: " + err.getMessage()));
     }
     catch (Exception e)
     {

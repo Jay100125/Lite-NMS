@@ -9,7 +9,9 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 public class MetricJobCache {
   private static final Logger logger = LoggerFactory.getLogger(MetricJobCache.class);
@@ -24,9 +26,12 @@ public class MetricJobCache {
   private static boolean isCacheInitialized = false;
 
   // Initialize cache by querying the database
-  public static synchronized void refreshCache(Vertx vertx) {
-    if (isCacheInitialized) {
+  public static synchronized void refreshCache(Vertx vertx)
+  {
+    if (isCacheInitialized)
+    {
       logger.info("Cache already initialized, skipping refresh");
+
       return;
     }
 
@@ -46,10 +51,14 @@ public class MetricJobCache {
   }
 
   // Update cache from query results
-  private static void updateCacheFromQueryResult(JsonArray results) {
-    results.forEach(entry -> {
+  private static void updateCacheFromQueryResult(JsonArray results)
+  {
+    results.forEach(entry ->
+    {
       JsonObject metric = (JsonObject) entry;
+
       Long metricId = metric.getLong("metric_id");
+
       JsonObject job = new JsonObject()
         .put("metric_id", metricId)
         .put("provisioning_job_id", metric.getLong("provisioning_job_id"))
@@ -65,7 +74,8 @@ public class MetricJobCache {
   }
 
   // Add a new metric job to the cache
-  public static void addMetricJob(Long metricId, Long provisioningJobId, String metricName, int pollingInterval, String ip, int port, JsonObject credData) {
+  public static void addMetricJob(Long metricId, Long provisioningJobId, String metricName, int pollingInterval, String ip, int port, JsonObject credData)
+  {
     JsonObject job = new JsonObject()
       .put("metric_id", metricId)
       .put("provisioning_job_id", provisioningJobId)
@@ -77,17 +87,37 @@ public class MetricJobCache {
       .put("remaining_time", pollingInterval);
 
     metricJobCache.put(metricId, job);
+
     logger.info("Added metric job to cache: metric_id={}", metricId);
   }
 
   // Remove a metric job from the cache
-  public static void removeMetricJob(Long metricId) {
+  public static void removeMetricJob(Long metricId)
+  {
     metricJobCache.remove(metricId);
+
     logger.info("Removed metric job from cache: metric_id={}", metricId);
   }
 
+
+  public static void removeMetricJobsByProvisioningJobId(Long provisioningJobId)
+  {
+    var removedIds = metricJobCache.entrySet().stream()
+      .filter(entry -> provisioningJobId.equals(entry.getValue().getLong("provisioning_job_id")))
+      .map(Map.Entry::getKey)
+      .collect(Collectors.toList());
+
+    removedIds.forEach(metricJobCache::remove);
+
+    if (!removedIds.isEmpty())
+    {
+      logger.info("Removed {} metric jobs for provisioning_job_id={}", removedIds.size(), provisioningJobId);
+    }
+  }
+
   // Update an existing metric job
-  public static void updateMetricJob(Long metricId, Long provisioningJobId, String metricName, int pollingInterval, String ip, int port, JsonObject credData) {
+  public static void updateMetricJob(Long metricId, Long provisioningJobId, String metricName, int pollingInterval, String ip, int port, JsonObject credData)
+  {
     JsonObject job = new JsonObject()
       .put("metric_id", metricId)
       .put("provisioning_job_id", provisioningJobId)
@@ -99,17 +129,29 @@ public class MetricJobCache {
       .put("remaining_time", pollingInterval);
 
     metricJobCache.put(metricId, job);
+
     logger.info("Updated metric job in cache: metric_id={}", metricId);
   }
 
+  public static Map<Long, JsonObject> getMetricJobsByProvisioningJobId(Long provisioningJobId)
+  {
+    return metricJobCache.entrySet().stream()
+      .filter(entry -> provisioningJobId.equals(entry.getValue().getLong("provisioning_job_id")))
+      .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+  }
+
   // Handle timer to decrement intervals and return jobs to poll
-  public static List<JsonObject> handleTimer() {
+  public static List<JsonObject> handleTimer()
+  {
     List<JsonObject> jobsToPoll = new ArrayList<>();
 
     // Decrement remaining time and collect jobs ready to poll
-    metricJobCache.forEach((metricId, job) -> {
+    metricJobCache.forEach((metricId, job) ->
+    {
       int newRemainingTime = job.getInteger("remaining_time") - TIMER_INTERVAL_SECONDS;
-      if (newRemainingTime <= 0) {
+
+      if (newRemainingTime <= 0)
+      {
         jobsToPoll.add(job);
         // Reset remaining time to original interval
         JsonObject updatedJob = new JsonObject()
@@ -121,8 +163,12 @@ public class MetricJobCache {
           .put("cred_data", job.getJsonObject("cred_data"))
           .put("original_interval", job.getInteger("original_interval"))
           .put("remaining_time", job.getInteger("original_interval"));
+
         metricJobCache.put(metricId, updatedJob);
-      } else {
+
+      }
+      else
+      {
         // Update remaining time
         JsonObject updatedJob = new JsonObject()
           .put("metric_id", job.getLong("metric_id"))
@@ -133,11 +179,13 @@ public class MetricJobCache {
           .put("cred_data", job.getJsonObject("cred_data"))
           .put("original_interval", job.getInteger("original_interval"))
           .put("remaining_time", newRemainingTime);
+
         metricJobCache.put(metricId, updatedJob);
       }
     });
 
-    if (!jobsToPoll.isEmpty()) {
+    if (!jobsToPoll.isEmpty())
+    {
       logger.info("Found {} jobs to poll", jobsToPoll.size());
     }
 

@@ -226,35 +226,47 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class PollingVerticle extends AbstractVerticle {
+public class PollingVerticle extends AbstractVerticle
+{
   private static final Logger logger = LoggerFactory.getLogger(PollingVerticle.class);
 
   // Timer interval (seconds) for polling
   private static final int TIMER_INTERVAL_SECONDS = 10;
 
   @Override
-  public void start() {
+  public void start()
+  {
     // Initialize the cache
     MetricJobCache.refreshCache(vertx);
+
     vertx.setPeriodic(TIMER_INTERVAL_SECONDS * 1000, this::handlePolling);
+
     logger.info("PollingVerticle started with timer interval {} seconds", TIMER_INTERVAL_SECONDS);
   }
 
   // Handle periodic polling
-  private void handlePolling(Long timerId) {
+  private void handlePolling(Long timerId)
+  {
     List<JsonObject> jobsToPoll = MetricJobCache.handleTimer();
-    if (!jobsToPoll.isEmpty()) {
+
+    if (!jobsToPoll.isEmpty())
+    {
       pollJobs(jobsToPoll);
     }
   }
 
   // Poll the collected jobs
-  private void pollJobs(List<JsonObject> jobs) {
-    try {
+  private void pollJobs(List<JsonObject> jobs)
+  {
+    try
+    {
       // Group jobs by IP and credentials to batch SSH calls
       Map<String, List<JsonObject>> jobsByDevice = new HashMap<>();
-      for (JsonObject job : jobs) {
+
+      for (JsonObject job : jobs)
+      {
         String deviceKey = job.getString("ip") + ":" + job.getJsonObject("cred_data").encode();
+
         jobsByDevice.computeIfAbsent(deviceKey, k -> new ArrayList<>()).add(job);
       }
 
@@ -263,20 +275,28 @@ public class PollingVerticle extends AbstractVerticle {
         .distinct()
         .toList();
 
-      JsonArray reachResults = Utility.checkReachability(ips, 22);
+      var reachResults = Utility.checkReachability(ips, 22);
 
-      JsonArray targets = new JsonArray();
+      var targets = new JsonArray();
 
-      reachResults.forEach(result -> {
+      reachResults.forEach(result ->
+      {
         JsonObject res = (JsonObject) result;
-        if (res.getBoolean("reachable") && res.getBoolean("port_open")) {
+
+        if (res.getBoolean("reachable") && res.getBoolean("port_open"))
+        {
           String ip = res.getString("ip");
-          jobsByDevice.forEach((deviceKey, jobList) -> {
-            if (deviceKey.startsWith(ip + ":")) {
+
+          jobsByDevice.forEach((deviceKey, jobList) ->
+          {
+            if (deviceKey.startsWith(ip + ":"))
+            {
               List<String> metrics = jobList.stream()
                 .map(job -> job.getString("metric_name"))
                 .toList();
+
               JsonObject sampleJob = jobList.get(0); // All jobs in list have same IP/cred
+
               targets.add(new JsonObject()
                 .put("ip.address", ip)
                 .put("port", sampleJob.getInteger("port"))
@@ -289,8 +309,10 @@ public class PollingVerticle extends AbstractVerticle {
         }
       });
 
-      if (targets.isEmpty()) {
+      if (targets.isEmpty())
+      {
         logger.info("No reachable targets for polling");
+
         return;
       }
 
@@ -298,33 +320,46 @@ public class PollingVerticle extends AbstractVerticle {
         .put("category", "polling")
         .put("targets", targets);
 
-      vertx.executeBlocking(promise -> {
+      vertx.executeBlocking(promise ->
+      {
         logger.info("Plugin input: {}", pluginInput.encodePrettily());
+
         JsonArray results = Utility.runSSHPlugin(pluginInput);
+
         logger.info("Plugin result: {}", results.encodePrettily());
+
         storePollResults(results);
+
         promise.complete();
       }, false);
-    } catch (Exception e) {
+    }
+    catch (Exception e)
+    {
       logger.error("Polling failed: {}", e.getMessage());
     }
   }
 
   // Store polling results in the database
-  private void storePollResults(JsonArray results) {
+  private void storePollResults(JsonArray results)
+  {
     if (results == null || results.isEmpty()) return;
 
     JsonArray batchParams = new JsonArray();
 
-    results.forEach(result -> {
+    results.forEach(result ->
+    {
       JsonObject resultObj = (JsonObject) result;
-      logger.info("Result: {}", resultObj.encodePrettily());
 
-      if ("success".equals(resultObj.getString("status"))) {
+//      logger.info("Result: {}", resultObj.encodePrettily());
+
+      if ("success".equals(resultObj.getString("status")))
+      {
         Long jobId = resultObj.getLong("provision_profile_id");
+
         JsonObject data = resultObj.getJsonObject("data");
 
-        if (data != null) {
+        if (data != null)
+        {
           data.fieldNames().forEach(metric ->
             batchParams.add(new JsonArray()
               .add(jobId)

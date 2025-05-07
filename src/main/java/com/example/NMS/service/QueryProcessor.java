@@ -1,5 +1,6 @@
 package com.example.NMS.service;
 
+import com.example.NMS.MetricJobCache;
 import com.example.NMS.constant.QueryConstant;
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonArray;
@@ -358,8 +359,10 @@ public class QueryProcessor
 
   public static void createProvisioningJobs(long discoveryId, JsonArray selectedIps, RoutingContext context)
   {
-    if (selectedIps == null || selectedIps.isEmpty()) {
+    if (selectedIps == null || selectedIps.isEmpty())
+    {
       sendError(context, 400, "No IPs provided for provisioning");
+
       return;
     }
 
@@ -391,7 +394,9 @@ public class QueryProcessor
         }
 
         var validIps = new JsonArray();
+
         var invalidIps = new JsonArray();
+
         var batchParams = new JsonArray();
 
         for (int i = 0; i < selectedIps.size(); i++)
@@ -474,23 +479,77 @@ public class QueryProcessor
               .put("query", QueryConstant.INSERT_DEFAULT_METRICS)
               .put("batchParams", metricsBatch);
 
+//            return executeBatchQuery(metricsQuery)
+//              .map(v ->
+//              {
+//                if (!SUCCESS.equals(v.getString("msg")))
+//                {
+//                  var metricId = v.getLong("insertedId");
+//                }
+//                JsonArray insertedRecords = new JsonArray();
+//
+//                for (var j = 0; j < validIps.size(); j++)
+//                {
+//                  var ip = validIps.getString(j);
+//                  insertedRecords.add(new JsonObject()
+//                    .put("ip", ip)
+//                    .put("status", "created")
+//                          .put("provisioning_job_id", insertedIds.getLong(j)));
+//                }
+//                return new JsonObject()
+//                  .put("validIps", validIps)
+//                  .put("invalidIps", invalidIps)
+//                  .put("insertedRecords", insertedRecords);
+//              });
+//          });
+//      })
             return executeBatchQuery(metricsQuery)
-              .map(v ->
+              .compose(v ->
               {
+                logger.info(v.encodePrettily());
                 JsonArray insertedRecords = new JsonArray();
 
-                for (var j = 0; j < validIps.size(); j++)
+                if (SUCCESS.equals(v.getString("msg")))
                 {
-                  var ip = validIps.getString(j);
-                  insertedRecords.add(new JsonObject()
-                    .put("ip", ip)
-                    .put("status", "created")
-                          .put("provisioning_job_id", insertedIds.getLong(j)));
+                  var metricIds = v.getJsonArray("insertedIds").getLong(0);
+
+                  // Add to MetricJobCache
+                  for (var j = 0; j < validIps.size(); j++) {
+                    var ip = validIps.getString(j);
+                    var discoveryResult = discoveryResults.get(ip);
+                    var provisioningJobId = insertedIds.getLong(j);
+
+
+                    for (String metric : defaultMetrics) {
+                      var metricId = metricIds++;
+                      var credData = fetchCredData(discoveryResult.getLong("credential_profile_id")); // Fetch cred_data
+                      MetricJobCache.addMetricJob(
+                        metricId,
+                        provisioningJobId,
+                        metric,
+                        defaultInterval,
+                        ip,
+                        discoveryResult.getInteger("port"),
+                        credData
+                      );
+
+                      insertedRecords.add(new JsonObject()
+                        .put("ip", ip)
+                        .put("status", "created")
+                        .put("provisioning_job_id", provisioningJobId)
+                        .put("metric_id", metricId)
+                        .put("metric_name", metric));
+                    }
+                  }
                 }
-                return new JsonObject()
+                else
+                {
+                  logger.info("not right");
+                }
+                return Future.succeededFuture(new JsonObject()
                   .put("validIps", validIps)
                   .put("invalidIps", invalidIps)
-                  .put("insertedRecords", insertedRecords);
+                  .put("insertedRecords", insertedRecords));
               });
           });
       })
@@ -515,6 +574,20 @@ public class QueryProcessor
         .put("error", msg)
         .encodePrettily());
 
+  }
+
+  private static JsonObject fetchCredData(long credentialProfileId) {
+    // Assume a query to fetch cred_data from credential_profiles table
+    JsonObject query = new JsonObject()
+      .put("query", "SELECT cred_data FROM credential_profile WHERE id = $1")
+      .put("params", new JsonArray().add(credentialProfileId));
+
+    // This is a synchronous placeholder; replace with actual async query if needed
+    JsonObject result = executeQuery(query).result();
+    if (result != null && SUCCESS.equals(result.getString("msg")) && !result.getJsonArray("result").isEmpty()) {
+      return result.getJsonArray("result").getJsonObject(0).getJsonObject("cred_data");
+    }
+    return new JsonObject(); // Fallback
   }
 }
 

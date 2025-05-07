@@ -59,7 +59,7 @@ public class QueryConstant
     "VALUES ($1, $2, $3) RETURNING id";
 
   public static final String INSERT_DEFAULT_METRICS = "INSERT INTO metrics (provisioning_job_id, name, polling_interval) " +
-    "VALUES ($1, $2, $3)";
+    "VALUES ($1, $2, $3) returning metric_id as id";
 
   public static final String GET_METRICS_BY_PROVISIONING_JOB = "SELECT * FROM metrics WHERE provisioning_job_id = $1";
 
