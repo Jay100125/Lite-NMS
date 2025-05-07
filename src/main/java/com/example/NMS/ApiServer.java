@@ -34,14 +34,11 @@ public class ApiServer extends AbstractVerticle
 
     router.route().subRouter(provisionRoute);
 
-    var credential = new Credential();
-    credential.init(credentialRoute);
+    new Credential().init(credentialRoute);
 
-    var discovery = new Discovery();
-    discovery.init(discoveryRoute);
+    new Discovery().init(discoveryRoute);
 
-    var provision = new Provision();
-    provision.init(provisionRoute);
+    new Provision().init(provisionRoute);
 
     vertx.createHttpServer().requestHandler(router)
       .listen(8080)

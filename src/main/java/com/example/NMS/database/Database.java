@@ -45,9 +45,9 @@ public class Database extends AbstractVerticle {
 
     startPromise.complete();
 
-    vertx.eventBus().consumer(EVENTBUS_ADDRESS, message ->
+    vertx.eventBus().<JsonObject>localConsumer(EVENTBUS_ADDRESS, message ->
     {
-      JsonObject input = (JsonObject) message.body();
+      JsonObject input = message.body();
 
       var query = input.getString("query");
 
@@ -91,6 +91,7 @@ public class Database extends AbstractVerticle {
               String columnName = row.getColumnName(i);
 
               Object columnValue = row.getValue(i);
+
               if (columnValue != null && columnValue.getClass().isArray())
               {
                 Object[] array = (Object[]) columnValue;
@@ -126,9 +127,9 @@ public class Database extends AbstractVerticle {
       });
     });
 
-    vertx.eventBus().consumer(EVENTBUS_BATCH_ADDRESS, message -> {
+    vertx.eventBus().<JsonObject>localConsumer(EVENTBUS_BATCH_ADDRESS, message -> {
 
-      JsonObject request = (JsonObject) message.body();
+      JsonObject request =  message.body();
 
       String query = request.getString("query");
 

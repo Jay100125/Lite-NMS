@@ -3,6 +3,7 @@ package com.example.NMS.service;
 import com.example.NMS.MetricJobCache;
 import com.example.NMS.constant.QueryConstant;
 import io.vertx.core.Future;
+import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
@@ -29,10 +30,11 @@ public class QueryProcessor
   {
     return Future.future(promise ->
     {
-      vertx.eventBus().request(EVENTBUS_ADDRESS, query, ar -> {
+      vertx.eventBus().<JsonObject>request(EVENTBUS_ADDRESS, query, ar -> {
         if (ar.succeeded())
         {
-          JsonObject result = (JsonObject) ar.result().body();
+          var result = ar.result().body();
+
           logger.info("Database query executed: {}", query);
 
           logger.info("Database query result: {}", result);

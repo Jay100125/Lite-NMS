@@ -117,7 +117,7 @@ public class Credential
     try
     {
       // Parse and validate ID
-      String idStr = context.pathParam(ID);
+      var idStr = context.pathParam(ID);
 
       long id;
 
@@ -133,7 +133,7 @@ public class Credential
       }
 
       // Parse request body
-      JsonObject body = context.body().asJsonObject();
+      var body = context.body().asJsonObject();
 
       if (body == null || body.isEmpty())
       {
@@ -143,7 +143,7 @@ public class Credential
       }
 
       // Validate sys_type if provided
-      String sysType = body.getString(SYSTEM_TYPE);
+      var sysType = body.getString(SYSTEM_TYPE);
 
       if (sysType != null && !sysType.isEmpty())
       {
@@ -157,7 +157,7 @@ public class Credential
       }
 
       // Validate cred_data if provided
-      JsonObject credData = body.getJsonObject(CRED_DATA);
+      var credData = body.getJsonObject(CRED_DATA);
 
       if (credData != null && (!credData.containsKey(USER) || !credData.containsKey(PASSWORD)))
       {
@@ -167,7 +167,7 @@ public class Credential
       }
 
       // Check if credential exists
-      JsonObject existsQuery = new JsonObject()
+      var existsQuery = new JsonObject()
         .put(QUERY, GET_CREDENTIAL_BY_ID)
         .put(PARAMS, new JsonArray().add(id));
 
@@ -180,13 +180,13 @@ public class Credential
           }
 
           // Prepare update parameters
-          JsonArray params = new JsonArray()
+          var params = new JsonArray()
             .add(body.getString(CREDENTIAL_NAME)) // Can be null
             .add(sysType) // Can be null
             .add(credData) // Can be null
             .add(id);
 
-          JsonObject updateQuery = new JsonObject()
+          var updateQuery = new JsonObject()
             .put("query", UPDATE_CREDENTIAL)
             .put("params", params);
 
@@ -194,7 +194,7 @@ public class Credential
         })
         .onSuccess(result -> {
 
-          JsonArray resultArray = result.getJsonArray("result");
+          var resultArray = result.getJsonArray("result");
 
           if (SUCCESS.equals(result.getString(MSG)) && !resultArray.isEmpty())
           {
@@ -357,6 +357,7 @@ public class Credential
         .onSuccess(result ->
         {
           var resultArray = result.getJsonArray("result");
+
           if (SUCCESS.equals(result.getString(MSG)) && !resultArray.isEmpty())
           {
             context.response()
@@ -397,6 +398,7 @@ public class Credential
   private void sendError(RoutingContext ctx, int statusCode, String errorMessage)
   {
     logger.info(errorMessage);
+
     ctx.response()
       .setStatusCode(statusCode)
       .putHeader("Content-Type", "application/json")
