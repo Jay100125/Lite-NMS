@@ -257,7 +257,7 @@ public class Utility
 
     public static JsonArray runSSHPlugin(JsonObject pluginJson)
     {
-      JsonArray results = new JsonArray();
+      var results = new JsonArray();
 
       Process process = null;
 
@@ -271,7 +271,7 @@ public class Utility
       try
       {
         // Start the SSH plugin process
-        ProcessBuilder pb = new ProcessBuilder("./plugin/ssh_plugin");
+        var pb = new ProcessBuilder("./plugin/ssh_plugin");
 
         process = pb.start();
 
@@ -297,7 +297,7 @@ public class Utility
           {
             byte[] decodedBytes = Base64.getDecoder().decode(line.trim());
 
-            String decoded = new String(decodedBytes, StandardCharsets.UTF_8);
+            var decoded = new String(decodedBytes, StandardCharsets.UTF_8);
 
             results.add(new JsonObject(decoded));
           }
@@ -310,7 +310,7 @@ public class Utility
         // Read stderr for debugging
         stdError = new BufferedReader(new InputStreamReader(process.getErrorStream()));
 
-        StringBuilder stderr = new StringBuilder();
+        var stderr = new StringBuilder();
 
         while ((line = stdError.readLine()) != null)
         {
@@ -321,7 +321,7 @@ public class Utility
   //      }
 
         // Wait for the process to exit
-        int exitCode = process.waitFor();
+        var exitCode = process.waitFor();
 
         if (exitCode != 0)
         {

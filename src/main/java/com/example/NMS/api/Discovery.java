@@ -1,6 +1,7 @@
 package com.example.NMS.api;
 
 import com.example.NMS.constant.QueryConstant;
+import com.example.NMS.service.DiscoveryService;
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -391,8 +392,20 @@ private void create(RoutingContext context)
         return;
       }
 
-      runDiscovery(id, context);
+//      runDiscovery(id, context);
 
+      DiscoveryService.runDiscovery(id)
+        .onSuccess(results -> context.response()
+          .setStatusCode(200)
+          .putHeader("Content-Type", "application/json")
+          .end(new JsonObject()
+            .put(MSG, SUCCESS)
+            .put("results", results)
+            .encodePrettily()))
+        .onFailure(err -> {
+          int status = err.getMessage().contains("Discovery profile not found") ? 404 : 500;
+          sendError(context, status, "Failed to run discovery: " + err.getMessage());
+        });
     }
     catch (Exception e)
     {

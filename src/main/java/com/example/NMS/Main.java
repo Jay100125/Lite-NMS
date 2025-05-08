@@ -23,12 +23,12 @@ public class Main
 
         return vertx.deployVerticle(Database.class.getName());
       })
-      .compose(res ->
-      {
-        LOGGER.info("database verticle is deployed");
-
-        return vertx.deployVerticle(PollingVerticle.class.getName()).onComplete(apiRes -> LOGGER.info("polling verticle deployed"));
-      })
+//      .compose(res ->
+//      {
+//        LOGGER.info("database verticle is deployed");
+//
+//        return vertx.deployVerticle(PollingVerticle.class.getName()).onComplete(apiRes -> LOGGER.info("polling verticle deployed"));
+//      })
       .onComplete(handler -> {
       if (handler.succeeded())
       {

@@ -2,6 +2,7 @@ package com.example.NMS.api;
 
 import com.example.NMS.MetricJobCache;
 import com.example.NMS.constant.QueryConstant;
+import com.example.NMS.service.ProvisionService;
 import com.example.NMS.utility.Utility;
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonArray;
@@ -87,7 +88,19 @@ public class Provision {
         }
       }
 
-      createProvisioningJobs(discoveryId, selectedIps, context);
+      ProvisionService.createProvisioningJobs(discoveryId, selectedIps)
+        .onSuccess(result -> context.response()
+          .setStatusCode(201)
+          .putHeader("Content-Type", "application/json")
+          .end(new JsonObject()
+            .put("msg", "Success")
+            .put("Provision_created", result.getJsonArray("insertedRecords"))
+            .put("invalid_ips", result.getJsonArray("invalidIps"))
+            .encodePrettily()))
+        .onFailure(err -> {
+          int status = err.getMessage().contains("No valid IPs") || err.getMessage().contains("No IPs provided") ? 400 : 500;
+          sendError(context, status, "Failed to create provisioning jobs: " + err.getMessage());
+        });
     }
     catch (Exception e)
     {
