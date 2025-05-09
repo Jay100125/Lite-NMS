@@ -19,15 +19,15 @@ public class Credential
 
   public void init(Router credentialRouter)
   {
-    credentialRouter.post("/api/credential").handler(this::handlePostCredential);
+    credentialRouter.post("/api/credential").handler(this::createCredential);
 
-    credentialRouter.patch("/api/credential/:id").handler(this::handlePatchCredential);
+    credentialRouter.patch("/api/credential/:id").handler(this::updateCredential);
 
-    credentialRouter.get("/api/credential").handler(this::handleGetAllCredentials);
+    credentialRouter.get("/api/credential").handler(this::getAllCredentials);
 
-    credentialRouter.get("/api/credential/:id").handler(this::handleGetCredentialById);
+    credentialRouter.get("/api/credential/:id").handler(this::getCredentialById);
 
-    credentialRouter.delete("/api/credential/:id").handler(this::handleDeleteCredential);
+    credentialRouter.delete("/api/credential/:id").handler(this::deleteCredential);
   }
 
   /**
@@ -35,7 +35,7 @@ public class Credential
    *
    * @param context The routing context.
    */
-  private void handlePostCredential(RoutingContext context)
+  private void createCredential(RoutingContext context)
   {
     try
     {
@@ -112,7 +112,7 @@ public class Credential
    * @param context The routing context.
    */
 
-  private void handlePatchCredential(RoutingContext context)
+  private void updateCredential(RoutingContext context)
   {
     try
     {
@@ -235,7 +235,7 @@ public class Credential
    *
    * @param context The routing context.
    */
-  private void handleGetAllCredentials(RoutingContext context)
+  private void getAllCredentials(RoutingContext context)
   {
     logger.info("Get all credentials");
 
@@ -271,7 +271,7 @@ public class Credential
    *
    * @param context The routing context.
    */
-  private void handleGetCredentialById(RoutingContext context)
+  private void getCredentialById(RoutingContext context)
   {
     try
     {
@@ -330,7 +330,7 @@ public class Credential
    *
    * @param context The routing context.
    */
-  private void handleDeleteCredential(RoutingContext context)
+  private void deleteCredential(RoutingContext context)
   {
     try
     {

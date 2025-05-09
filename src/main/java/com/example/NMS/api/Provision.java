@@ -25,18 +25,18 @@ public class Provision
 
   public void init(Router provisionRouter)
   {
-    provisionRouter.post("/api/provision/:id").handler(this::handlePostProvision);
+    provisionRouter.post("/api/provision/:id").handler(this::createProvision);
 
-    provisionRouter.get("/api/provision").handler(this::handleGetAllProvisions);
+    provisionRouter.get("/api/provision").handler(this::getAllProvisions);
 
-    provisionRouter.delete("/api/provision/:id").handler(this::handleDeleteProvision);
+    provisionRouter.delete("/api/provision/:id").handler(this::deleteProvision);
 
-    provisionRouter.put("/api/provision/:id/metrics").handler(this::handleUpdateMetrics);
+    provisionRouter.put("/api/provision/:id/metrics").handler(this::updateMetrics);
 
-    provisionRouter.get("/api/polled-data").handler(this::handleGetAllPolledData);
+    provisionRouter.get("/api/polled-data").handler(this::getAllPolledData);
   }
 
-  public void handlePostProvision(RoutingContext context)
+  public void createProvision(RoutingContext context)
   {
     try
     {
@@ -111,7 +111,7 @@ public class Provision
   }
 
 
-  public void handleGetAllProvisions(RoutingContext context)
+  public void getAllProvisions(RoutingContext context)
   {
     try
     {
@@ -142,7 +142,7 @@ public class Provision
     }
   }
 
-  public void handleDeleteProvision(RoutingContext context)
+  public void deleteProvision(RoutingContext context)
   {
     try
     {
@@ -193,7 +193,7 @@ public class Provision
     }
   }
 
-  public void handleUpdateMetrics(RoutingContext context)
+  public void updateMetrics(RoutingContext context)
   {
     try
     {
@@ -275,15 +275,6 @@ public class Provision
 
       executeQuery(deleteStaleQuery)
         .compose(v -> executeBatchQuery(upsertQuery))
-//        .onSuccess(v -> context.response()
-//          .setStatusCode(200)
-//          .putHeader("Content-Type", "application/json")
-//          .end(new JsonObject()
-//            .put("msg", "Success")
-//            .put("provisioning_job_id", provisioningJobId)
-//            .encodePrettily()))
-//        .onFailure(err -> sendError(context, 500, "Failed to update metrics: " + err.getMessage()));
-
         .compose(v ->
         {
           // Combined query to fetch provisioning job and cred_data
@@ -303,8 +294,11 @@ public class Provision
               }
 
               var job = jobResult.getJsonArray("result").getJsonObject(0);
+
               var ip = job.getString("ip");
+
               var port = job.getInteger("port");
+
               var credData = job.getJsonObject("cred_data", new JsonObject());
 
               // Fetch current metric IDs
@@ -377,7 +371,7 @@ public class Provision
     }
   }
 
-  public void handleGetAllPolledData(RoutingContext context)
+  public void getAllPolledData(RoutingContext context)
   {
     try
     {

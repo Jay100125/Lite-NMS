@@ -52,7 +52,7 @@ public class ApiServer extends AbstractVerticle
         }
         else
         {
-          LOGGER.info("Server Failed");
+          LOGGER.error("Server Failed");
 
           startPromise.fail(handler.cause());
         }

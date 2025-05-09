@@ -391,7 +391,6 @@ private void create(RoutingContext context)
         return;
       }
 
-//      runDiscovery(id, context);
 
       DiscoveryService.runDiscovery(id)
         .onSuccess(results -> context.response()
@@ -410,7 +409,7 @@ private void create(RoutingContext context)
     }
     catch (Exception e)
     {
-      logger.info("Something is not right");
+      logger.error("Failed to process discovery request");
     }
   }
 

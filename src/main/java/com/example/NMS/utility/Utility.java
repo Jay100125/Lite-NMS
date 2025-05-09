@@ -269,6 +269,7 @@ public class Utility
       OutputStreamWriter stdOutput = null;
 
       logger.info("-----------------------------------------------------------");
+
       try
       {
         // Start the SSH plugin process

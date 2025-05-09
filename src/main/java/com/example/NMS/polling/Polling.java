@@ -16,9 +16,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class PollingVerticle extends AbstractVerticle
+public class Polling extends AbstractVerticle
 {
-  private static final Logger logger = LoggerFactory.getLogger(PollingVerticle.class);
+  private static final Logger logger = LoggerFactory.getLogger(Polling.class);
 
   // Timer interval (seconds) for polling
   private static final int TIMER_INTERVAL_SECONDS = 10;
@@ -166,7 +166,7 @@ public class PollingVerticle extends AbstractVerticle
       .put("batchParams", batchParams);
 
     QueryProcessor.executeBatchQuery(batchQuery)
-      .onSuccess(r -> logger.debug("Stored {} metrics", batchParams.size()))
+      .onSuccess(r -> logger.info("Stored {} metrics", batchParams.size()))
       .onFailure(err -> logger.error("Store failed: {}", err.getMessage()));
   }
 }

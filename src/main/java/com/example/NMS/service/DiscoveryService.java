@@ -273,32 +273,3 @@ public class DiscoveryService
       });
   }
 }
-
-
-//      for (int i = 0; i < reachResults.size(); i++)
-//      {
-//        JsonObject obj = reachResults.getJsonObject(i);
-//
-//        boolean up = obj.getBoolean("reachable");
-//
-//        boolean open = obj.getBoolean("port_open");
-//
-//        if (up && open)
-//        {
-//          String ip = obj.getString("ip");
-//
-//          for (int j = 0; j < credentials.size(); j++)
-//          {
-//            JsonObject cred = credentials.getJsonObject(j);
-//
-//            Long credentialProfileId = cred.getLong("credential_profile_id");
-//
-//            pluginInput.getJsonArray("targets").add(new JsonObject()
-//              .put("ip.address", ip)
-//              .put("user", cred.getJsonObject("cred_data").getString("user"))
-//              .put("password", cred.getJsonObject("cred_data").getString("password"))
-//              .put("port", port)
-//              .put("credential_profile_id", credentialProfileId));
-//          }
-//        }
-//      }
