@@ -19,8 +19,8 @@ import static com.example.NMS.constant.QueryConstant.DELETE_PROVISIONING_JOB;
 import static com.example.NMS.constant.QueryConstant.GET_ALL_PROVISIONING_JOBS;
 import static com.example.NMS.service.QueryProcessor.*;
 
-public class Provision {
-
+public class Provision
+{
   public static final Logger logger = LoggerFactory.getLogger(Provision.class);
 
   public void init(Router provisionRouter)
@@ -78,7 +78,7 @@ public class Provision {
 
       for (var i = 0; i < selectedIps.size(); i++)
       {
-        String ip = selectedIps.getString(i);
+        var ip = selectedIps.getString(i);
 
         if (!Utility.isValidIPv4(ip))
         {
@@ -97,8 +97,10 @@ public class Provision {
             .put("Provision_created", result.getJsonArray("insertedRecords"))
             .put("invalid_ips", result.getJsonArray("invalidIps"))
             .encodePrettily()))
-        .onFailure(err -> {
-          int status = err.getMessage().contains("No valid IPs") || err.getMessage().contains("No IPs provided") ? 400 : 500;
+        .onFailure(err ->
+        {
+          var status = err.getMessage().contains("No valid IPs") || err.getMessage().contains("No IPs provided") ? 400 : 500;
+
           sendError(context, status, "Failed to create provisioning jobs: " + err.getMessage());
         });
     }
@@ -246,7 +248,7 @@ public class Provision {
 
           return;
         }
-        if (!Arrays.asList("CPU", "MEMORY", "DISK", "FILE", "PROCESS", "NETWORK", "PING", "SYSINFO").contains(name))
+        if (!Arrays.asList("CPU", "MEMORY", "DISK", "NETWORK", "PROCESS", "UPTIME").contains(name))
         {
           sendError(context, 400, "Invalid metric name: " + name);
 
@@ -317,11 +319,15 @@ public class Provision {
 
                   // Remove stale metric jobs from cache
                   var metricJobs = MetricJobCache.getMetricJobsByProvisioningJobId(provisioningJobId);
+
                   for (var entry : metricJobs.entrySet())
                   {
                     var metricId = entry.getKey();
+
                     var metricJob = entry.getValue();
+
                     var metricName = metricJob.getString("metric_name");
+
                     if (!metricNames.contains(metricName))
                     {
                       MetricJobCache.removeMetricJob(metricId);
@@ -329,20 +335,15 @@ public class Provision {
                   }
 
                   // Add or update metric jobs in cache
-                  for (int i = 0; i < currentMetrics.size(); i++)
+                  for (var i = 0; i < currentMetrics.size(); i++)
                   {
-                    logger.info("(((((((((((((((((((((((((((9999");
                     var metric = currentMetrics.getJsonObject(i);
-                    logger.info("(((((((((((((((((((((((((((1");
 
                     var metricId = metric.getLong("metric_id");
-                    logger.info("(((((((((((((((((((((((((((2");
 
                     var metricName = metric.getString("name");
-                    logger.info("(((((((((((((((((((((((((((3");
 
                     var pollingInterval = metric.getInteger("polling_interval");
-                    logger.info("(((((((((((((((((((((((((((4");
 
                     MetricJobCache.updateMetricJob(
                       metricId,
@@ -376,14 +377,18 @@ public class Provision {
     }
   }
 
-  public void handleGetAllPolledData(RoutingContext context) {
-    try {
+  public void handleGetAllPolledData(RoutingContext context)
+  {
+    try
+    {
       var query = new JsonObject()
         .put(QUERY, QueryConstant.GET_ALL_POLLED_DATA);
 
       executeQuery(query)
-        .onSuccess(result -> {
-          if (SUCCESS.equals(result.getString(MSG))) {
+        .onSuccess(result ->
+        {
+          if (SUCCESS.equals(result.getString(MSG)))
+          {
             context.response()
               .setStatusCode(200)
               .putHeader("Content-Type", "application/json")
@@ -391,13 +396,18 @@ public class Provision {
                 .put("msg", "Success")
                 .put("results", result.getJsonArray("result"))
                 .encodePrettily());
-          } else {
+          }
+          else
+          {
             sendError(context, 404, "No polled data found");
           }
         })
         .onFailure(err -> sendError(context, 500, "Database query failed: " + err.getMessage()));
-    } catch (Exception e) {
+    }
+    catch (Exception e)
+    {
       logger.error("Error fetching polled data: {}", e.getMessage());
+
       sendError(context, 500, "Internal server error");
     }
   }

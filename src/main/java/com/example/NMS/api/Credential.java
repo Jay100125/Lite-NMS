@@ -55,14 +55,14 @@ public class Credential
 
       var credData = body.getJsonObject(CRED_DATA);
 
-      if (credentialName.isEmpty() || sysType.isEmpty() || !credData.containsKey(USER) || !credData.containsKey(PASSWORD))
+      if (credentialName.isEmpty() || sysType.isEmpty() || !credData.containsKey(USER) || !credData.containsKey(PASSWORD) || credData.getString(USER).isEmpty() || credData.getString(PASSWORD).isEmpty())
       {
         sendError(context, 400, "missing field or invalid data");
 
         return;
       }
 
-      if (!sysType.equals("windows") && !sysType.equals("linux") && !sysType.equals("snmp"))
+      if (!sysType.equals(WINDOWS) && !sysType.equals(LINUX) && !sysType.equals(SNMP))
       {
         sendError(context, 400, "invalid system_type");
 
@@ -147,7 +147,7 @@ public class Credential
 
       if (sysType != null && !sysType.isEmpty())
       {
-        if (!sysType.equals("windows") && !sysType.equals("linux") && !sysType.equals("snmp"))
+        if (!sysType.equals(WINDOWS) && !sysType.equals(LINUX) && !sysType.equals(SNMP))
         {
 
           sendError(context, 400, "Invalid sys_type");

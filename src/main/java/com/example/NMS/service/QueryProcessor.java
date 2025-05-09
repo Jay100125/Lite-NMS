@@ -30,23 +30,34 @@ public class QueryProcessor
   {
     return Future.future(promise ->
     {
-      vertx.eventBus().<JsonObject>request(EVENTBUS_ADDRESS, query, ar -> {
-        if (ar.succeeded())
+      try
+      {
+        vertx.eventBus().<JsonObject>request(EVENTBUS_ADDRESS, query, ar ->
         {
-          var result = ar.result().body();
+          if (ar.succeeded())
+          {
+            var result = ar.result().body();
 
-          logger.info("Database query executed: {}", query);
+            logger.info("Database query executed: {}", query);
 
-          logger.info("Database query result: {}", result);
+            logger.info("Database query result: {}", result);
 
-          promise.complete(result);
-        }
-        else
-        {
-          logger.error("Database query failed: {}", ar.cause().getMessage());
-          promise.fail(ar.cause());
-        }
-      });
+            promise.complete(result);
+          }
+          else
+          {
+            logger.error("Database query failed: {}", ar.cause().getMessage());
+
+            promise.fail(ar.cause());
+          }
+        });
+      }
+      catch (Exception e)
+      {
+        logger.error("Unexpected error executing query: {}", e.getMessage(), e);
+
+        promise.fail("Unexpected error executing query: " + e.getMessage());
+      }
     });
   }
 
@@ -61,25 +72,34 @@ public class QueryProcessor
   {
     return Future.future(promise ->
     {
-      vertx.eventBus().request(EVENTBUS_BATCH_ADDRESS, batchQuery, ar ->
+      try
       {
-        if (ar.succeeded())
+        vertx.eventBus().request(EVENTBUS_BATCH_ADDRESS, batchQuery, ar ->
         {
-          var result = (JsonObject) ar.result().body();
+          if (ar.succeeded())
+          {
+            var result = (JsonObject) ar.result().body();
 
-          logger.info("Batch query executed: {}", batchQuery.getString("query"));
+            logger.info("Batch query executed: {}", batchQuery.getString("query"));
 
-          logger.info("Batch query result: {}", result);
+            logger.info("Batch query result: {}", result);
 
-          promise.complete(result);
-        }
-        else
-        {
-          logger.error("Batch query failed: {}", ar.cause().getMessage());
+            promise.complete(result);
+          }
+          else
+          {
+            logger.error("Batch query failed: {}", ar.cause().getMessage());
 
-          promise.fail(ar.cause());
-        }
-      });
+            promise.fail(ar.cause());
+          }
+        });
+      }
+      catch (Exception e)
+      {
+        logger.error("Unexpected error executing batch query: {}", e.getMessage(), e);
+
+        promise.fail("Unexpected error executing batch query: " + e.getMessage());
+      }
     });
   }
 }

@@ -98,4 +98,10 @@ public class QueryConstant
             SELECT id, job_id, metric_type, data, TO_CHAR(polled_at, 'YYYY-MM-DD"T"HH24:MI:SS') AS polled_at
             FROM polled_data""";
 
+
+  public static final String REGISTER_USER = "INSERT INTO users (username, password) VALUES ($1, $2) RETURNING id";
+
+  public static final String GET_USER_BY_USERNAME = "SELECT id, username, password FROM users WHERE username = $1";
+
+
 }

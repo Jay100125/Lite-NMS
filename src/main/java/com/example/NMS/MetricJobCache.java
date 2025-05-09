@@ -13,7 +13,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-public class MetricJobCache {
+public class MetricJobCache
+{
   private static final Logger logger = LoggerFactory.getLogger(MetricJobCache.class);
 
   // Static cache of metric jobs: metric_id -> JsonObject
@@ -42,9 +43,12 @@ public class MetricJobCache {
       "JOIN credential_profile cp ON pj.credential_profile_id = cp.id";
 
     QueryProcessor.executeQuery(new JsonObject().put("query", query))
-      .onSuccess(result -> {
+      .onSuccess(result ->
+      {
         updateCacheFromQueryResult(result.getJsonArray("result"));
+
         isCacheInitialized = true;
+
         logger.info("Initial cache populated with {} jobs", metricJobCache.size());
       })
       .onFailure(err -> logger.error("Initial cache refresh failed: {}", err.getMessage()));
@@ -55,9 +59,9 @@ public class MetricJobCache {
   {
     results.forEach(entry ->
     {
-      JsonObject metric = (JsonObject) entry;
+      var metric = (JsonObject) entry;
 
-      Long metricId = metric.getLong("metric_id");
+      var metricId = metric.getLong("metric_id");
 
       JsonObject job = new JsonObject()
         .put("metric_id", metricId)
@@ -76,7 +80,7 @@ public class MetricJobCache {
   // Add a new metric job to the cache
   public static void addMetricJob(Long metricId, Long provisioningJobId, String metricName, int pollingInterval, String ip, int port, JsonObject credData)
   {
-    JsonObject job = new JsonObject()
+    var job = new JsonObject()
       .put("metric_id", metricId)
       .put("provisioning_job_id", provisioningJobId)
       .put("metric_name", metricName)
@@ -118,7 +122,7 @@ public class MetricJobCache {
   // Update an existing metric job
   public static void updateMetricJob(Long metricId, Long provisioningJobId, String metricName, int pollingInterval, String ip, int port, JsonObject credData)
   {
-    JsonObject job = new JsonObject()
+    var job = new JsonObject()
       .put("metric_id", metricId)
       .put("provisioning_job_id", provisioningJobId)
       .put("metric_name", metricName)
@@ -154,33 +158,12 @@ public class MetricJobCache {
       {
         jobsToPoll.add(job);
         // Reset remaining time to original interval
-        JsonObject updatedJob = new JsonObject()
-          .put("metric_id", job.getLong("metric_id"))
-          .put("provisioning_job_id", job.getLong("provisioning_job_id"))
-          .put("metric_name", job.getString("metric_name"))
-          .put("ip", job.getString("ip"))
-          .put("port", job.getInteger("port"))
-          .put("cred_data", job.getJsonObject("cred_data"))
-          .put("original_interval", job.getInteger("original_interval"))
-          .put("remaining_time", job.getInteger("original_interval"));
-
-        metricJobCache.put(metricId, updatedJob);
-
+        job.put("remaining_time", job.getInteger("original_interval"));
       }
       else
       {
         // Update remaining time
-        JsonObject updatedJob = new JsonObject()
-          .put("metric_id", job.getLong("metric_id"))
-          .put("provisioning_job_id", job.getLong("provisioning_job_id"))
-          .put("metric_name", job.getString("metric_name"))
-          .put("ip", job.getString("ip"))
-          .put("port", job.getInteger("port"))
-          .put("cred_data", job.getJsonObject("cred_data"))
-          .put("original_interval", job.getInteger("original_interval"))
-          .put("remaining_time", newRemainingTime);
-
-        metricJobCache.put(metricId, updatedJob);
+        job.put("remaining_time", newRemainingTime);
       }
     });
 

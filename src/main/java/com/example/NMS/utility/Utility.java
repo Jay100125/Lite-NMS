@@ -174,11 +174,12 @@ public class Utility
         }
 
 
-        for (var ip : aliveIps)
-        {
-          logger.info("fping alive IP: {}", ip);
-
-        }
+//        for (var ip : aliveIps)
+//        {
+//          logger.info("fping alive IP: {}", ip);
+//
+//        }
+        logger.info("fping alive IPs: {}", aliveIps);
 
         logger.info("FPING command: {}", String.join(" ", command));
         // Log stderr for debugging

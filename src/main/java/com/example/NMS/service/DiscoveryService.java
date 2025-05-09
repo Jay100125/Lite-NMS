@@ -28,11 +28,11 @@ public class DiscoveryService
    */
   public static Future<JsonArray> runDiscovery(long id)
   {
-    JsonObject fetchQuery = new JsonObject()
+    var fetchQuery = new JsonObject()
       .put("query", QueryConstant.RUN_DISCOVERY)
       .put("params", new JsonArray().add(id));
 
-    JsonObject setRunningQuery = new JsonObject()
+    var setRunningQuery = new JsonObject()
       .put("query", QueryConstant.SET_DISCOVERY_STATUS)
       .put("params", new JsonArray().add(true).add(id));
 
@@ -40,7 +40,7 @@ public class DiscoveryService
       .compose(v -> executeQuery(fetchQuery))
       .compose(body ->
       {
-        JsonArray rows = body.getJsonArray("result");
+        var rows = body.getJsonArray("result");
 
         if (!SUCCESS.equals(body.getString("msg")) || rows.isEmpty())
         {
@@ -49,23 +49,23 @@ public class DiscoveryService
           return Future.failedFuture("Discovery profile not found");
         }
 
-        String ipInput = rows.getJsonObject(0).getString("ip");
+        var ipInput = rows.getJsonObject(0).getString("ip");
 
-        Integer port = rows.getJsonObject(0).getInteger("port");
+        var port = rows.getJsonObject(0).getInteger("port");
 
         logger.info("Discovery profile: {}", ipInput);
 
         // Process credentials
-        JsonArray credentials = new JsonArray();
+        var credentials = new JsonArray();
 
         Set<Long> seenCredentialIds = new HashSet<>();
-        for (int i = 0; i < rows.size(); i++)
+        for (var i = 0; i < rows.size(); i++)
         {
-          JsonObject row = rows.getJsonObject(i);
+          var row = rows.getJsonObject(i);
 
-          Long credentialProfileId = row.getLong("cpid");
+          var credentialProfileId = row.getLong("cpid");
 
-          JsonObject credData = row.getJsonObject("cred_data");
+          var credData = row.getJsonObject("cred_data");
 
           if (credentialProfileId != null && credData != null && seenCredentialIds.add(credentialProfileId))
           {
@@ -80,16 +80,16 @@ public class DiscoveryService
           .compose(reachResults -> doSSH(reachResults, credentials, id, port))
           .compose(sshResult ->
           {
-            JsonArray reachabilityResults = sshResult.getJsonArray("reachabilityResults");
+            var reachabilityResults = sshResult.getJsonArray("reachabilityResults");
 
-            JsonArray discoveryResults = sshResult.getJsonArray("discoveryResults");
+            var discoveryResults = sshResult.getJsonArray("discoveryResults");
 
             return storeDiscoveryResults(discoveryResults, id)
               .map(reachabilityResults);
           })
           .compose(results ->
           {
-            JsonObject resetStatusQuery = new JsonObject()
+            var resetStatusQuery = new JsonObject()
               .put("query", QueryConstant.SET_DISCOVERY_STATUS)
               .put("params", new JsonArray().add(true).add(id));
 
@@ -98,7 +98,7 @@ public class DiscoveryService
           })
           .recover(err -> {
 
-            JsonObject resetStatusQuery = new JsonObject()
+            var resetStatusQuery = new JsonObject()
               .put("query", QueryConstant.SET_DISCOVERY_STATUS)
               .put("params", new JsonArray().add(false).add(id));
 
@@ -131,43 +131,42 @@ public class DiscoveryService
         .put("metric.type", "linux")
         .put("port", port)
         .put("dis.id", discoveryId)
-        .put("targets", new JsonArray());
+        .put("ips", new JsonArray())
+        .put("credentials", new JsonArray());
 
       logger.info(reachResults.encodePrettily());
 
-      for (int i = 0; i < reachResults.size(); i++)
+      for (var i = 0; i < reachResults.size(); i++)
       {
-        JsonObject obj = reachResults.getJsonObject(i);
+        var obj = reachResults.getJsonObject(i);
 
-        boolean up = obj.getBoolean("reachable");
+        var up = obj.getBoolean("reachable");
 
-        boolean open = obj.getBoolean("port_open");
+        var open = obj.getBoolean("port_open");
 
         if (up && open)
         {
-          String ip = obj.getString("ip");
-
-          for (int j = 0; j < credentials.size(); j++)
-          {
-            JsonObject cred = credentials.getJsonObject(j);
-
-            Long credentialProfileId = cred.getLong("credential_profile_id");
-
-            pluginInput.getJsonArray("targets").add(new JsonObject()
-              .put("ip.address", ip)
-              .put("user", cred.getJsonObject("cred_data").getString("user"))
-              .put("password", cred.getJsonObject("cred_data").getString("password"))
-              .put("port", port)
-              .put("credential_profile_id", credentialProfileId));
-          }
+          pluginInput.getJsonArray("ips").add(obj.getString("ip"));
         }
+      }
+
+      for (var i = 0; i < credentials.size(); i++)
+      {
+        var cred = credentials.getJsonObject(i);
+
+        var credData = cred.getJsonObject("cred_data");
+
+        pluginInput.getJsonArray("credentials").add(new JsonObject()
+          .put("id", cred.getLong("credential_profile_id"))
+          .put("username", credData.getString("user"))
+          .put("password", credData.getString("password")));
       }
 
       logger.info("Plugin input: {}", pluginInput.encodePrettily());
 
-      JsonArray pluginResults = runSSHPlugin(pluginInput);
+      var pluginResults = runSSHPlugin(pluginInput);
 
-      for (int i = 0; i < reachResults.size(); i++)
+      for (var i = 0; i < reachResults.size(); i++)
       {
         var obj = reachResults.getJsonObject(i);
 
@@ -189,7 +188,7 @@ public class DiscoveryService
           {
             var res = pluginResults.getJsonObject(j);
 
-            var resIp = res.getString("ip.address");
+            var resIp = res.getString("ip");
 
             var status = res.getString("status");
 
@@ -199,7 +198,7 @@ public class DiscoveryService
               {
                 reachableIps.add(ip);
 
-                successfulCredId = res.getLong("credential_profile_id");
+                successfulCredId = res.getLong("credential_id");
 
                 uname = res.getString("uname");
 
@@ -210,6 +209,7 @@ public class DiscoveryService
               else
               {
                 errorMsg = res.getString("error");
+
               }
             }
           }
@@ -219,7 +219,7 @@ public class DiscoveryService
           .put("ip", ip)
           .put("port", port)
           .put("result", errorMsg == null ? "completed" : "failed")
-          .put("msg", errorMsg)
+          .put("msg", errorMsg == null ? uname : errorMsg)
           .put("credential_profile_id", successfulCredId));
 
         obj.put("uname", uname);
@@ -273,3 +273,32 @@ public class DiscoveryService
       });
   }
 }
+
+
+//      for (int i = 0; i < reachResults.size(); i++)
+//      {
+//        JsonObject obj = reachResults.getJsonObject(i);
+//
+//        boolean up = obj.getBoolean("reachable");
+//
+//        boolean open = obj.getBoolean("port_open");
+//
+//        if (up && open)
+//        {
+//          String ip = obj.getString("ip");
+//
+//          for (int j = 0; j < credentials.size(); j++)
+//          {
+//            JsonObject cred = credentials.getJsonObject(j);
+//
+//            Long credentialProfileId = cred.getLong("credential_profile_id");
+//
+//            pluginInput.getJsonArray("targets").add(new JsonObject()
+//              .put("ip.address", ip)
+//              .put("user", cred.getJsonObject("cred_data").getString("user"))
+//              .put("password", cred.getJsonObject("cred_data").getString("password"))
+//              .put("port", port)
+//              .put("credential_profile_id", credentialProfileId));
+//          }
+//        }
+//      }

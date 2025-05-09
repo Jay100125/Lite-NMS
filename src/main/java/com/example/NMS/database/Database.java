@@ -34,20 +34,18 @@ public class Database extends AbstractVerticle {
 
     var poolOptions = new PoolOptions().setMaxSize(10);
 
-    var sqlClient = PgBuilder
+    client = PgBuilder
       .client()
       .with(poolOptions)
       .connectingTo(connectOptions)
       .using(vertx)
       .build();
 
-    client = sqlClient;
-
     startPromise.complete();
 
     vertx.eventBus().<JsonObject>localConsumer(EVENTBUS_ADDRESS, message ->
     {
-      JsonObject input = message.body();
+      var input = message.body();
 
       var query = input.getString("query");
 
@@ -75,7 +73,8 @@ public class Database extends AbstractVerticle {
         }
       }
 
-      client.preparedQuery(query).execute(params, ar -> {
+      client.preparedQuery(query).execute(params, ar ->
+      {
         if (ar.succeeded())
         {
           var rows = ar.result();
@@ -149,7 +148,7 @@ public class Database extends AbstractVerticle {
 
       for (int i = 0; i < batchParams.size(); i++)
       {
-        JsonArray params = batchParams.getJsonArray(i);
+        var params = batchParams.getJsonArray(i);
         Tuple tuple = Tuple.tuple();
 
         if (query.equals(QueryConstant.INSERT_DISCOVERY_CREDENTIAL))
@@ -228,7 +227,7 @@ public class Database extends AbstractVerticle {
         {
           logger.info("Batch insert executed, inserted {} rows", batch.size());
 
-          JsonArray insertedIds = new JsonArray();
+          var insertedIds = new JsonArray();
 
           result.forEach(row -> insertedIds.add(row.getLong("id")));
 
@@ -236,7 +235,8 @@ public class Database extends AbstractVerticle {
             .put("msg", "Success")
             .put("insertedIds", insertedIds));
         })
-        .onFailure(err -> {
+        .onFailure(err ->
+        {
           logger.warn("Batch insert failed: {}, error: {}", query, err.getMessage());
 
           message.reply(new JsonObject()

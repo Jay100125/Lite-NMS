@@ -16,7 +16,6 @@ public class Discovery {
 
   public void init(Router discoveryRoute)
   {
-
     discoveryRoute.post("/api/discovery").handler(this::create);
 
     discoveryRoute.get("/api/discovery"+ "/:id").handler(this::getById);
@@ -402,8 +401,10 @@ private void create(RoutingContext context)
             .put(MSG, SUCCESS)
             .put("results", results)
             .encodePrettily()))
-        .onFailure(err -> {
-          int status = err.getMessage().contains("Discovery profile not found") ? 404 : 500;
+        .onFailure(err ->
+        {
+          var status = err.getMessage().contains("Discovery profile not found") ? 404 : 500;
+
           sendError(context, status, "Failed to run discovery: " + err.getMessage());
         });
     }

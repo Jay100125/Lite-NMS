@@ -18,6 +18,12 @@ public class Constant {
 
   public static final String SUCCESS = "Success";
 
+  public static final String WINDOWS = "windows";
+
+  public static final String LINUX = "linux";
+
+  public static final String SNMP = "snmp";
+
   public static final String CREDENTIAL_NAME = "credential_name";
 
   public static final String SYSTEM_TYPE = "system_type";
