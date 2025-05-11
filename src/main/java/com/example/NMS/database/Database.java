@@ -12,13 +12,14 @@ import io.vertx.sqlclient.Tuple;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import static com.example.NMS.constant.Constant.*;
 
 public class Database extends AbstractVerticle {
 
-  private static final Logger logger = LoggerFactory.getLogger(Database.class);
+  private static final Logger LOGGER = LoggerFactory.getLogger(Database.class);
 
   private static SqlClient client;
 
@@ -41,7 +42,16 @@ public class Database extends AbstractVerticle {
       .using(vertx)
       .build();
 
-    startPromise.complete();
+
+    initializeSchema()
+      .onSuccess(v -> {
+        startPromise.complete();
+        LOGGER.info("Database schema initialized");
+      })
+      .onFailure(err -> {
+        LOGGER.error("Schema initialization failed: {}", err.getMessage());
+        startPromise.fail(err);
+      });
 
     vertx.eventBus().<JsonObject>localConsumer(EVENTBUS_ADDRESS, message ->
     {
@@ -117,7 +127,7 @@ public class Database extends AbstractVerticle {
         }
         else
         {
-          logger.error("❌ Query failed: {}", ar.cause().getMessage());
+          LOGGER.error("❌ Query failed: {}", ar.cause().getMessage());
 
           message.reply(new JsonObject()
             .put("msg", "fail")
@@ -136,7 +146,7 @@ public class Database extends AbstractVerticle {
 
       if (query == null || batchParams == null || batchParams.isEmpty())
       {
-        logger.error("Invalid batch request: query={}, batchParams={}", query, batchParams);
+        LOGGER.error("Invalid batch request: query={}, batchParams={}", query, batchParams);
 
         message.reply(new JsonObject()
           .put("msg", "Error")
@@ -208,7 +218,7 @@ public class Database extends AbstractVerticle {
         }
         else
         {
-          logger.error("Unsupported batch query: {}", query);
+          LOGGER.error("Unsupported batch query: {}", query);
 
           message.reply(new JsonObject()
             .put("msg", "Error")
@@ -219,13 +229,13 @@ public class Database extends AbstractVerticle {
         batch.add(tuple);
       }
 
-      logger.info("Executing batch query: {}, tuples: {}", query, batch.size());
+      LOGGER.info("Executing batch query: {}, tuples: {}", query, batch.size());
 
       client.preparedQuery(query)
         .executeBatch(batch)
         .onSuccess(result ->
         {
-          logger.info("Batch insert executed, inserted {} rows", batch.size());
+          LOGGER.info("Batch insert executed, inserted {} rows", batch.size());
 
           var insertedIds = new JsonArray();
 
@@ -237,12 +247,37 @@ public class Database extends AbstractVerticle {
         })
         .onFailure(err ->
         {
-          logger.warn("Batch insert failed: {}, error: {}", query, err.getMessage());
+          LOGGER.error("Batch insert failed: {}, error: {}", query, err.getMessage());
 
           message.reply(new JsonObject()
             .put("msg", "Error")
             .put("ERROR", err.getMessage()));
         });
+    });
+  }
+
+  private Future<Void> initializeSchema() {
+    return vertx.executeBlocking(promise -> {
+      try {
+        String schema = new String(
+          getClass().getResourceAsStream("/schema.sql").readAllBytes(),
+          StandardCharsets.UTF_8
+        );
+        // Split into individual statements
+        String[] ddlStatements = schema.split(";");
+
+        for (String statement : ddlStatements) {
+          if (statement.trim().isEmpty()) continue;
+          client.query(statement).execute()
+            .onFailure(err -> {
+              LOGGER.error("Failed to execute DDL: {}", statement);
+              promise.fail(err);
+            });
+        }
+        promise.complete();
+      } catch (Exception e) {
+        promise.fail(e);
+      }
     });
   }
 }

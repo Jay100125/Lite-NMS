@@ -21,7 +21,7 @@ import static com.example.NMS.service.QueryProcessor.*;
 
 public class Provision
 {
-  public static final Logger logger = LoggerFactory.getLogger(Provision.class);
+  public static final Logger LOGGER = LoggerFactory.getLogger(Provision.class);
 
   public void init(Router provisionRouter)
   {
@@ -106,7 +106,7 @@ public class Provision
     }
     catch (Exception e)
     {
-        logger.error(e.getMessage());
+      LOGGER.error(e.getMessage());
     }
   }
 
@@ -136,7 +136,7 @@ public class Provision
     }
     catch (Exception e)
     {
-      logger.error("Error getting all provisions: {}", e.getMessage());
+      LOGGER.error("Error getting all provisions: {}", e.getMessage());
 
       sendError(context, 500, "Internal server error");
     }
@@ -187,7 +187,7 @@ public class Provision
     }
     catch (Exception e)
     {
-      logger.error("Error deleting provision job: {}", e.getMessage());
+      LOGGER.error("Error deleting provision job: {}", e.getMessage());
 
       sendError(context, 500, "Internal server error");
     }
@@ -365,7 +365,7 @@ public class Provision
     }
     catch (Exception e)
     {
-      logger.error("Error updating metrics: {}", e.getMessage());
+      LOGGER.error("Error updating metrics: {}", e.getMessage());
 
       sendError(context, 500, "Internal server error");
     }
@@ -400,7 +400,7 @@ public class Provision
     }
     catch (Exception e)
     {
-      logger.error("Error fetching polled data: {}", e.getMessage());
+      LOGGER.error("Error fetching polled data: {}", e.getMessage());
 
       sendError(context, 500, "Internal server error");
     }

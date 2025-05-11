@@ -23,13 +23,8 @@ public class Utility
       return ip != null && ip.matches(IPv4_PATTERN);
     }
 
-  /**
-   * Resolve IP addresses from a given input string.
-   * @param ipInput
-   * @return
-   * @throws Exception
-   */
-    public static List<String> resolveIpAddresses(String ipInput) throws Exception
+  /// Resolve IP addresses from a given input string.
+  public static List<String> resolveIpAddresses(String ipInput) throws Exception
     {
       List<String> ipList = new ArrayList<>();
 
@@ -215,20 +210,20 @@ public class Utility
       // Check port for each IP
       for (var ip : ipList)
       {
-        boolean isReachable = aliveIps.contains(ip);
+        var isReachable = aliveIps.contains(ip);
 
-        boolean isPortOpen = false;
+        var isPortOpen = false;
 
         if (isReachable)
         {
           try
           {
             // Use nc to check port
-            ProcessBuilder pb = new ProcessBuilder("nc", "-z", "-w", "1", ip, String.valueOf(port));
+            var pb = new ProcessBuilder("nc", "-z", "-w", "1", ip, String.valueOf(port));
 
             Process process = pb.start();
 
-            int exitCode = process.waitFor();
+            var exitCode = process.waitFor();
 
             isPortOpen = exitCode == 0;
 
@@ -323,7 +318,7 @@ public class Utility
   //      }
 
         // Wait for the process to exit
-        var exitCode = process.waitFor();
+        var exitCode = process.waitFor(2, java.util.concurrent.TimeUnit.SECONDS) ? process.exitValue() : -1;
 
         if (exitCode != 0)
         {

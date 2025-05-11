@@ -36,7 +36,7 @@ public class QueryConstant
     "JOIN credential_profile cp ON dcm.credential_profile_id = cp.id \n" +
     "WHERE dp.id = $1";
 
-  public static final String INSERT_DISCOVERY_CREDENTIAL = "INSERT INTO discovery_credential_mapping (discovery_id, credential_profile_id) VALUES ($1, $2)";
+  public static final String INSERT_DISCOVERY_CREDENTIAL = "INSERT INTO discovery_credential_mapping (discovery_id, credential_profile_id) VALUES ($1, $2) RETURNING id";
 
   public static final String DELETE_DISCOVERY_CREDENTIALS = "DELETE FROM discovery_credential_mapping WHERE discovery_id = $1";
 

@@ -18,7 +18,7 @@ import static com.example.NMS.utility.Utility.*;
 
 public class DiscoveryService
 {
-  private static final Logger logger = LoggerFactory.getLogger(DiscoveryService.class);
+  private static final Logger LOGGER = LoggerFactory.getLogger(DiscoveryService.class);
 
   /**
    * Run a discovery process for the given discovery ID.
@@ -44,7 +44,7 @@ public class DiscoveryService
 
         if (!SUCCESS.equals(body.getString("msg")) || rows.isEmpty())
         {
-          logger.info("Discovery profile not found");
+          LOGGER.info("Discovery profile not found");
 
           return Future.failedFuture("Discovery profile not found");
         }
@@ -53,7 +53,7 @@ public class DiscoveryService
 
         var port = rows.getJsonObject(0).getInteger("port");
 
-        logger.info("Discovery profile: {}", ipInput);
+        LOGGER.info("Discovery profile: {}", ipInput);
 
         // Process credentials
         var credentials = new JsonArray();
@@ -134,7 +134,7 @@ public class DiscoveryService
         .put("ips", new JsonArray())
         .put("credentials", new JsonArray());
 
-      logger.info(reachResults.encodePrettily());
+      LOGGER.info(reachResults.encodePrettily());
 
       for (var i = 0; i < reachResults.size(); i++)
       {
@@ -162,7 +162,7 @@ public class DiscoveryService
           .put("password", credData.getString("password")));
       }
 
-      logger.info("Plugin input: {}", pluginInput.encodePrettily());
+      LOGGER.info("Plugin input: {}", pluginInput.encodePrettily());
 
       var pluginResults = runSSHPlugin(pluginInput);
 
@@ -262,7 +262,7 @@ public class DiscoveryService
       {
         if (SUCCESS.equals(result.getString("msg")))
         {
-          logger.info("Successfully inserted/updated {} discovery results", batchParams.size());
+          LOGGER.info("Successfully inserted/updated {} discovery results", batchParams.size());
 
           return Future.succeededFuture();
         }

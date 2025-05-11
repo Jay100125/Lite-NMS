@@ -18,7 +18,7 @@ import static com.example.NMS.utility.Utility.*;
 
 public class QueryProcessor
 {
-  public static final Logger logger = LoggerFactory.getLogger(QueryProcessor.class);
+  public static final Logger LOGGER = LoggerFactory.getLogger(QueryProcessor.class);
 
   /**
    * Execute a single database query and return a Future with the result.
@@ -38,15 +38,15 @@ public class QueryProcessor
           {
             var result = ar.result().body();
 
-            logger.info("Database query executed: {}", query);
+            LOGGER.info("Database query executed: {}", query);
 
-            logger.info("Database query result: {}", result);
+            LOGGER.info("Database query result: {}", result);
 
             promise.complete(result);
           }
           else
           {
-            logger.error("Database query failed: {}", ar.cause().getMessage());
+            LOGGER.error("Database query failed: {}", ar.cause().getMessage());
 
             promise.fail(ar.cause());
           }
@@ -54,7 +54,7 @@ public class QueryProcessor
       }
       catch (Exception e)
       {
-        logger.error("Unexpected error executing query: {}", e.getMessage(), e);
+        LOGGER.error("Unexpected error executing query: {}", e.getMessage(), e);
 
         promise.fail("Unexpected error executing query: " + e.getMessage());
       }
@@ -80,15 +80,15 @@ public class QueryProcessor
           {
             var result = (JsonObject) ar.result().body();
 
-            logger.info("Batch query executed: {}", batchQuery.getString("query"));
+            LOGGER.info("Batch query executed: {}", batchQuery.getString("query"));
 
-            logger.info("Batch query result: {}", result);
+            LOGGER.info("Batch query result: {}", result);
 
             promise.complete(result);
           }
           else
           {
-            logger.error("Batch query failed: {}", ar.cause().getMessage());
+            LOGGER.error("Batch query failed: {}", ar.cause().getMessage());
 
             promise.fail(ar.cause());
           }
@@ -96,7 +96,7 @@ public class QueryProcessor
       }
       catch (Exception e)
       {
-        logger.error("Unexpected error executing batch query: {}", e.getMessage(), e);
+        LOGGER.error("Unexpected error executing batch query: {}", e.getMessage(), e);
 
         promise.fail("Unexpected error executing batch query: " + e.getMessage());
       }

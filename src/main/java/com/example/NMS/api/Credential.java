@@ -15,7 +15,7 @@ import static com.example.NMS.constant.QueryConstant.*;
 
 public class Credential
 {
-  private static final Logger logger = LoggerFactory.getLogger(Credential.class);
+  private static final Logger LOGGER = LoggerFactory.getLogger(Credential.class);
 
   public void init(Router credentialRouter)
   {
@@ -95,14 +95,14 @@ public class Credential
         })
         .onFailure(err ->
         {
-          logger.error("Failed to create credential: {}", err.getMessage(), err);
+          LOGGER.error("Failed to create credential: {}", err.getMessage(), err);
 
           sendError(context, 500, "Database error: " + err.getMessage());
         });
     }
     catch (Exception e)
     {
-      logger.error(e.getMessage(), e);
+      LOGGER.error(e.getMessage(), e);
     }
   }
 
@@ -213,7 +213,7 @@ public class Credential
         })
         .onFailure(err ->
         {
-          logger.error("Failed to update credential: {}", err.getMessage(), err);
+          LOGGER.error("Failed to update credential: {}", err.getMessage(), err);
 
           int statusCode = err.getMessage().equals("Credential not found") ? 404 : 500;
 
@@ -224,7 +224,7 @@ public class Credential
     }
     catch (Exception e)
     {
-      logger.error("Error in patch credential: {}", e.getMessage(), e);
+      LOGGER.error("Error in patch credential: {}", e.getMessage(), e);
 
       sendError(context, 500, "Internal server error");
     }
@@ -237,7 +237,7 @@ public class Credential
    */
   private void getAllCredentials(RoutingContext context)
   {
-    logger.info("Get all credentials");
+    LOGGER.info("Get all credentials");
 
     var getAllQuery = new JsonObject()
       .put(QUERY, QueryConstant.GET_ALL_CREDENTIALS);
@@ -259,7 +259,7 @@ public class Credential
       })
       .onFailure(err ->
       {
-        logger.error("Failed to fetch credentials: {}", err.getMessage(), err);
+        LOGGER.error("Failed to fetch credentials: {}", err.getMessage(), err);
 
         sendError(context, 500, "Database error: " + err.getMessage());
       });
@@ -313,14 +313,14 @@ public class Credential
         })
         .onFailure(err ->
         {
-          logger.error("Failed to fetch credential {}: {}", id, err.getMessage(), err);
+          LOGGER.error("Failed to fetch credential {}: {}", id, err.getMessage(), err);
 
           sendError(context, 500, "Database error: " + err.getMessage());
         });
     }
     catch (Exception e)
     {
-      logger.error(e.getMessage(), e);
+      LOGGER.error(e.getMessage(), e);
     }
   }
 
@@ -375,14 +375,14 @@ public class Credential
         })
         .onFailure(err ->
         {
-          logger.error("Failed to delete credential {}: {}", id, err.getMessage(), err);
+          LOGGER.error("Failed to delete credential {}: {}", id, err.getMessage(), err);
 
           sendError(context, 500, "Database error: " + err.getMessage());
         });
     }
     catch (Exception e)
     {
-      logger.error(e.getMessage(), e);
+      LOGGER.error(e.getMessage(), e);
     }
 
   }
@@ -397,7 +397,7 @@ public class Credential
 
   private void sendError(RoutingContext ctx, int statusCode, String errorMessage)
   {
-    logger.info(errorMessage);
+    LOGGER.error(errorMessage);
 
     ctx.response()
       .setStatusCode(statusCode)

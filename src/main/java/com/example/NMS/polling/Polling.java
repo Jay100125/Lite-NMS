@@ -18,7 +18,7 @@ import java.util.Map;
 
 public class Polling extends AbstractVerticle
 {
-  private static final Logger logger = LoggerFactory.getLogger(Polling.class);
+  private static final Logger LOGGER = LoggerFactory.getLogger(Polling.class);
 
   // Timer interval (seconds) for polling
   private static final int TIMER_INTERVAL_SECONDS = 10;
@@ -31,7 +31,7 @@ public class Polling extends AbstractVerticle
 
     vertx.setPeriodic(TIMER_INTERVAL_SECONDS * 1000, this::handlePolling);
 
-    logger.info("PollingVerticle started with timer interval {} seconds", TIMER_INTERVAL_SECONDS);
+    LOGGER.info("PollingVerticle started with timer interval {} seconds", TIMER_INTERVAL_SECONDS);
   }
 
   // Handle periodic polling
@@ -101,7 +101,7 @@ public class Polling extends AbstractVerticle
 
       if (targets.isEmpty())
       {
-        logger.info("No reachable targets for polling");
+        LOGGER.info("No reachable targets for polling");
 
         return;
       }
@@ -112,11 +112,11 @@ public class Polling extends AbstractVerticle
 
       vertx.executeBlocking(promise ->
       {
-        logger.info("Plugin input: {}", pluginInput.encodePrettily());
+        LOGGER.info("Plugin input: {}", pluginInput.encodePrettily());
 
         JsonArray results = Utility.runSSHPlugin(pluginInput);
 
-        logger.info("Plugin result: {}", results.encodePrettily());
+        LOGGER.info("Plugin result: {}", results.encodePrettily());
 
         storePollResults(results);
 
@@ -125,7 +125,7 @@ public class Polling extends AbstractVerticle
     }
     catch (Exception e)
     {
-      logger.error("Polling failed: {}", e.getMessage());
+      LOGGER.error("Polling failed: {}", e.getMessage());
     }
   }
 
@@ -166,7 +166,7 @@ public class Polling extends AbstractVerticle
       .put("batchParams", batchParams);
 
     QueryProcessor.executeBatchQuery(batchQuery)
-      .onSuccess(r -> logger.info("Stored {} metrics", batchParams.size()))
-      .onFailure(err -> logger.error("Store failed: {}", err.getMessage()));
+      .onSuccess(r -> LOGGER.info("Stored {} metrics", batchParams.size()))
+      .onFailure(err -> LOGGER.error("Store failed: {}", err.getMessage()));
   }
 }

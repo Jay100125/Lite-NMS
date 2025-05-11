@@ -14,8 +14,9 @@ import java.util.Map;
 import static com.example.NMS.constant.Constant.SUCCESS;
 import static com.example.NMS.service.QueryProcessor.*;
 
-public class ProvisionService {
-  private static final Logger logger = LoggerFactory.getLogger(ProvisionService.class);
+public class ProvisionService
+{
+  private static final Logger LOGGER = LoggerFactory.getLogger(ProvisionService.class);
 
   /**
    * Create provisioning jobs for the given discovery ID and selected IPs.
@@ -36,7 +37,7 @@ public class ProvisionService {
         "FROM discovery_result WHERE discovery_id = $1 AND ip = ANY($2::varchar[])")
       .put("params", new JsonArray().add(discoveryId).add(selectedIps));
 
-    logger.info(validateQuery.encodePrettily());
+    LOGGER.info(validateQuery.encodePrettily());
 
     return executeQuery(validateQuery)
       .compose(result ->

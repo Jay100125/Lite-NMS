@@ -7,12 +7,16 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static com.example.NMS.constant.Constant.*;
 import static com.example.NMS.service.QueryProcessor.*;
 
 
-public class Discovery {
+public class Discovery
+{
+  private static final Logger LOGGER = LoggerFactory.getLogger(Discovery.class);
 
   public void init(Router discoveryRoute)
   {
@@ -131,7 +135,7 @@ private void create(RoutingContext context)
   }
   catch (Exception e)
   {
-    logger.error("Error creating discovery: {}", e.getMessage());
+    LOGGER.error("Error creating discovery: {}", e.getMessage());
 
     sendError(context, 500, "Internal server error");
   }
@@ -180,7 +184,7 @@ private void create(RoutingContext context)
     }
     catch (Exception e)
     {
-      logger.error("Error getting discovery by ID: {}", e.getMessage());
+      LOGGER.error("Error getting discovery by ID: {}", e.getMessage());
 
       sendError(context, 500, "Internal server error");
     }
@@ -251,7 +255,7 @@ private void create(RoutingContext context)
     }
     catch (Exception e)
     {
-      logger.error("Error deleting discovery: {}", e.getMessage());
+      LOGGER.error("Error deleting discovery: {}", e.getMessage());
 
       sendError(context, 500, "Internal server error");
     }
@@ -366,7 +370,7 @@ private void create(RoutingContext context)
     }
     catch (Exception e)
     {
-      logger.error("Error updating discovery: {}", e.getMessage());
+      LOGGER.error("Error updating discovery: {}", e.getMessage());
 
       sendError(context, 500, "Internal server error");
     }
@@ -409,7 +413,7 @@ private void create(RoutingContext context)
     }
     catch (Exception e)
     {
-      logger.error("Failed to process discovery request");
+      LOGGER.error("Failed to process discovery request");
     }
   }
 
