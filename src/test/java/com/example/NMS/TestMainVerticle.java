@@ -12,7 +12,7 @@ public class TestMainVerticle {
 
   @BeforeEach
   void deploy_verticle(Vertx vertx, VertxTestContext testContext) {
-    vertx.deployVerticle(new ApiServer()).onComplete(testContext.succeeding(id -> testContext.completeNow()));
+    vertx.deployVerticle(new Server()).onComplete(testContext.succeeding(id -> testContext.completeNow()));
   }
 
   @Test

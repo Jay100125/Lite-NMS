@@ -1,7 +1,6 @@
 package com.example.NMS;
 
 import com.example.NMS.database.Database;
-import com.example.NMS.polling.Polling;
 import io.vertx.core.Vertx;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,19 +15,19 @@ public class Main
   {
     LOGGER.info("Starting NMS");
 
-    vertx.deployVerticle(new ApiServer())
+    vertx.deployVerticle(new Server())
       .compose(res ->
       {
         LOGGER.info("HTTP server verticle deployed");
 
         return vertx.deployVerticle(Database.class.getName());
       })
-      .compose(res ->
-      {
-        LOGGER.info("database verticle is deployed");
-
-        return vertx.deployVerticle(Polling.class.getName()).onComplete(apiRes -> LOGGER.info("polling verticle deployed"));
-      })
+//      .compose(res ->
+//      {
+//        LOGGER.info("database verticle is deployed");
+//
+//        return vertx.deployVerticle(Polling.class.getName()).onComplete(apiRes -> LOGGER.info("polling verticle deployed"));
+//      })
       .onComplete(handler -> {
       if (handler.succeeded())
       {

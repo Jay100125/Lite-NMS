@@ -13,6 +13,9 @@ import static com.example.NMS.service.QueryProcessor.executeQuery;
 import static com.example.NMS.constant.Constant.*;
 import static com.example.NMS.constant.QueryConstant.*;
 
+/**
+ * Manages CRUD operations for SSH credentials in Lite NMS, handling creation, updating, retrieval, and deletion.
+ */
 public class Credential
 {
   private static final Logger LOGGER = LoggerFactory.getLogger(Credential.class);
@@ -81,12 +84,12 @@ public class Credential
           if (SUCCESS.equals(result.getString(MSG)) && !resultArray.isEmpty())
           {
             context.response()
-              .setStatusCode(201)
-              .putHeader("Content-Type", "application/json")
-              .end(new JsonObject()
-                .put(MSG, SUCCESS)
-                .put(ID, resultArray.getJsonObject(0).getLong(ID))
-                .encodePrettily());
+                    .setStatusCode(201)
+                    .putHeader("Content-Type", "application/json")
+                    .end(new JsonObject()
+                            .put(MSG, SUCCESS)
+                            .put(ID, resultArray.getJsonObject(0).getLong(ID))
+                            .encodePrettily());
           }
           else
           {
@@ -143,11 +146,11 @@ public class Credential
       }
 
       // Validate sys_type if provided
-      var sysType = body.getString(SYSTEM_TYPE);
+      var systemType = body.getString(SYSTEM_TYPE);
 
-      if (sysType != null && !sysType.isEmpty())
+      if (systemType != null && !systemType.isEmpty())
       {
-        if (!sysType.equals(WINDOWS) && !sysType.equals(LINUX) && !sysType.equals(SNMP))
+        if (!systemType.equals(WINDOWS) && !systemType.equals(LINUX) && !systemType.equals(SNMP))
         {
 
           sendError(context, 400, "Invalid sys_type");
@@ -157,9 +160,9 @@ public class Credential
       }
 
       // Validate cred_data if provided
-      var credData = body.getJsonObject(CRED_DATA);
+      var credentialData = body.getJsonObject(CRED_DATA);
 
-      if (credData != null && (!credData.containsKey(USER) || !credData.containsKey(PASSWORD)))
+      if (credentialData != null && (!credentialData.containsKey(USER) || !credentialData.containsKey(PASSWORD)))
       {
         sendError(context, 400, "cred_data must contain user and password");
 
@@ -181,14 +184,14 @@ public class Credential
 
           // Prepare update parameters
           var params = new JsonArray()
-            .add(body.getString(CREDENTIAL_NAME)) // Can be null
-            .add(sysType) // Can be null
-            .add(credData) // Can be null
-            .add(id);
+                    .add(body.getString(CREDENTIAL_NAME)) // Can be null
+                    .add(systemType) // Can be null
+                    .add(credentialData) // Can be null
+                    .add(id);
 
           var updateQuery = new JsonObject()
-            .put("query", UPDATE_CREDENTIAL)
-            .put("params", params);
+                              .put(QUERY, UPDATE_CREDENTIAL)
+                              .put(PARAMS, params);
 
           return QueryProcessor.executeQuery(updateQuery);
         })
@@ -199,12 +202,12 @@ public class Credential
           if (SUCCESS.equals(result.getString(MSG)) && !resultArray.isEmpty())
           {
             context.response()
-              .setStatusCode(200)
-              .putHeader("Content-Type", "application/json")
-              .end(new JsonObject()
-                .put(MSG, SUCCESS)
-                .put(ID, resultArray.getJsonObject(0).getLong(ID))
-                .encodePrettily());
+                  .setStatusCode(200)
+                  .putHeader("Content-Type", "application/json")
+                  .end(new JsonObject()
+                          .put(MSG, SUCCESS)
+                          .put(ID, resultArray.getJsonObject(0).getLong(ID))
+                          .encodePrettily());
           }
           else
           {
@@ -248,9 +251,9 @@ public class Credential
         if (SUCCESS.equals(result.getString(MSG)))
         {
           context.response()
-            .setStatusCode(200)
-            .putHeader("Content-Type", "application/json")
-            .end(result.encodePrettily());
+                  .setStatusCode(200)
+                  .putHeader("Content-Type", "application/json")
+                  .end(result.encodePrettily());
         }
         else
         {
@@ -291,8 +294,8 @@ public class Credential
       }
 
       var getQuery = new JsonObject()
-        .put(QUERY, GET_CREDENTIAL_BY_ID)
-        .put(PARAMS, new JsonArray().add(id));
+                    .put(QUERY, GET_CREDENTIAL_BY_ID)
+                    .put(PARAMS, new JsonArray().add(id));
 
       executeQuery(getQuery)
         .onSuccess(result ->
@@ -302,9 +305,9 @@ public class Credential
           if (SUCCESS.equals(result.getString(MSG)) && !resultArray.isEmpty())
           {
             context.response()
-              .setStatusCode(200)
-              .putHeader("Content-Type", "application/json")
-              .end(result.encodePrettily());
+                    .setStatusCode(200)
+                    .putHeader("Content-Type", "application/json")
+                    .end(result.encodePrettily());
           }
           else
           {
@@ -361,12 +364,12 @@ public class Credential
           if (SUCCESS.equals(result.getString(MSG)) && !resultArray.isEmpty())
           {
             context.response()
-              .setStatusCode(200)
-              .putHeader("Content-Type", "application/json")
-              .end(new JsonObject()
-                .put(MSG, SUCCESS)
-                .put(ID, resultArray.getJsonObject(0).getLong(ID))
-                .encodePrettily());
+                    .setStatusCode(200)
+                    .putHeader("Content-Type", "application/json")
+                    .end(new JsonObject()
+                            .put(MSG, SUCCESS)
+                            .put(ID, resultArray.getJsonObject(0).getLong(ID))
+                            .encodePrettily());
           }
           else
           {
@@ -400,11 +403,11 @@ public class Credential
     LOGGER.error(errorMessage);
 
     ctx.response()
-      .setStatusCode(statusCode)
-      .putHeader("Content-Type", "application/json")
-      .end(new JsonObject()
-        .put(statusCode == 400 || statusCode == 409 ? "msg" : "status", "failed")
-        .put("error", errorMessage)
-        .encode());
+            .setStatusCode(statusCode)
+            .putHeader("Content-Type", "application/json")
+            .end(new JsonObject()
+                    .put(statusCode == 400 || statusCode == 409 ? "msg" : "status", "failed")
+                    .put("error", errorMessage)
+                    .encode());
   }
 }

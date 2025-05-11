@@ -14,6 +14,9 @@ import static com.example.NMS.constant.Constant.*;
 import static com.example.NMS.service.QueryProcessor.*;
 
 
+/**
+ * Manages CRUD operations and execution of discovery profiles in Lite NMS, enabling network device detection.
+ */
 public class Discovery
 {
   private static final Logger LOGGER = LoggerFactory.getLogger(Discovery.class);
@@ -33,114 +36,125 @@ public class Discovery
     discoveryRoute.post("/api/discovery" + "/:id/run").handler(this::run);
   }
 
-private void create(RoutingContext context)
-{
-  try
+  /**
+   * Handles POST requests to create a new discovery profile, associating it with credentials and storing it in PostgreSQL.
+   *
+   * @param context The routing context containing the HTTP request.
+   */
+
+  private void create(RoutingContext context)
   {
-    var body = context.body().asJsonObject();
-
-    if (body == null || !body.containsKey(DISCOVERY_PROFILE_NAME) || !body.containsKey(CREDENTIAL_PROFILE_ID) || !body.containsKey(IP_ADDRESS) || !body.containsKey(PORT))
-    {
-      sendError(context, 400, "missing field or invalid data");
-
-      return;
-    }
-
-    var discoveryName = body.getString(DISCOVERY_PROFILE_NAME);
-
-    var credIdsArray = body.getJsonArray(CREDENTIAL_PROFILE_ID);
-
-    var ip = body.getString(IP_ADDRESS);
-
-    var portStr = body.getString(PORT);
-
-    if (discoveryName.isEmpty() || credIdsArray.isEmpty() || ip.isEmpty() || portStr.isEmpty())
-    {
-      sendError(context, 400, "missing field or invalid data");
-
-      return;
-    }
-
-    int port;
-
     try
     {
-      port = Integer.parseInt(portStr);
-    }
-    catch (Exception e)
-    {
-      sendError(context, 400, "Invalid port");
+      var body = context.body().asJsonObject();
 
-      return;
-    }
-
-    var credIds = new JsonArray();
-
-    for (int i = 0; i < credIdsArray.size(); i++)
-    {
-      try
+      if (body == null || !body.containsKey(DISCOVERY_PROFILE_NAME) || !body.containsKey(CREDENTIAL_PROFILE_ID) || !body.containsKey(IP_ADDRESS) || !body.containsKey(PORT))
       {
-        var credId = Long.parseLong(credIdsArray.getString(i));
-
-        credIds.add(credId);
-      }
-      catch (Exception e)
-      {
-        sendError(context, 400, "Invalid credential_profile_id: " + credIdsArray.getString(i));
+        sendError(context, 400, "missing field or invalid data");
 
         return;
       }
-    }
 
-    // Insert discovery profile
-    var query = new JsonObject()
-      .put(QUERY, QueryConstant.INSERT_DISCOVERY)
-      .put(PARAMS, new JsonArray().add(discoveryName).add(ip).add(port));
+      var discoveryName = body.getString(DISCOVERY_PROFILE_NAME);
 
-    executeQuery(query)
-      .compose(result ->
+      var credentialIdsArray = body.getJsonArray(CREDENTIAL_PROFILE_ID);
+
+      var ip = body.getString(IP_ADDRESS);
+
+      var portStr = body.getString(PORT);
+
+      if (discoveryName.isEmpty() || credentialIdsArray.isEmpty() || ip.isEmpty() || portStr.isEmpty())
       {
-        var resultArray = result.getJsonArray("result");
+        sendError(context, 400, "missing field or invalid data");
 
-        if (!SUCCESS.equals(result.getString(MSG)) || resultArray.isEmpty())
+        return;
+      }
+
+      int port;
+
+      try
+      {
+        port = Integer.parseInt(portStr);
+      }
+      catch (Exception e)
+      {
+        sendError(context, 400, "Invalid port");
+
+        return;
+      }
+
+      var credentialIds = new JsonArray();
+
+      for (int i = 0; i < credentialIdsArray.size(); i++)
+      {
+        try
         {
-          return Future.failedFuture("Failed to create discovery profile");
+          var credentialId = Long.parseLong(credentialIdsArray.getString(i));
+
+          credentialIds.add(credentialId);
         }
-
-        var discoveryId = resultArray.getJsonObject(0).getLong(ID);
-
-        var batchParams = new JsonArray();
-
-        for (var i = 0; i < credIds.size(); i++)
+        catch (Exception e)
         {
-          batchParams.add(new JsonArray().add(discoveryId).add(credIds.getLong(i)));
+          sendError(context, 400, "Invalid credential_profile_id: " + credentialIdsArray.getString(i));
+
+          return;
         }
+      }
 
-        var batchQuery = new JsonObject()
-          .put(QUERY, QueryConstant.INSERT_DISCOVERY_CREDENTIAL)
-          .put(BATCHPARAMS, batchParams);
+      // Insert discovery profile into database.
+      var query = new JsonObject()
+        .put(QUERY, QueryConstant.INSERT_DISCOVERY)
+        .put(PARAMS, new JsonArray().add(discoveryName).add(ip).add(port));
 
-        return executeBatchQuery(batchQuery)
-          .map(discoveryId);
+      executeQuery(query)
+        .compose(result ->
+        {
+          var resultArray = result.getJsonArray("result");
 
-      })
-      .onSuccess(discoveryId -> context.response()
-        .setStatusCode(201)
-        .putHeader("Content-Type", "application/json")
-        .end(new JsonObject()
-          .put(MSG, SUCCESS)
-          .put(ID, discoveryId)
-          .encodePrettily()))
-      .onFailure(err -> sendError(context, 500, "Failed to create discovery: " + err.getMessage()));
+          if (!SUCCESS.equals(result.getString(MSG)) || resultArray.isEmpty())
+          {
+            return Future.failedFuture("Failed to create discovery profile");
+          }
+
+          var discoveryId = resultArray.getJsonObject(0).getLong(ID);
+
+          var batchParams = new JsonArray();
+
+          for (var i = 0; i < credentialIds.size(); i++)
+          {
+            batchParams.add(new JsonArray().add(discoveryId).add(credentialIds.getLong(i)));
+          }
+
+          var batchQuery = new JsonObject()
+            .put(QUERY, QueryConstant.INSERT_DISCOVERY_CREDENTIAL)
+            .put(BATCHPARAMS, batchParams);
+
+          return executeBatchQuery(batchQuery)
+            .map(discoveryId);
+
+        })
+        .onSuccess(discoveryId -> context.response()
+                .setStatusCode(201)
+                .putHeader("Content-Type", "application/json")
+                .end(new JsonObject()
+                        .put(MSG, SUCCESS)
+                        .put(ID, discoveryId)
+                        .encodePrettily()))
+        .onFailure(err -> sendError(context, 500, "Failed to create discovery: " + err.getMessage()));
+    }
+    catch (Exception e)
+    {
+      LOGGER.error("Error creating discovery: {}", e.getMessage());
+
+      sendError(context, 500, "Internal server error");
+    }
   }
-  catch (Exception e)
-  {
-    LOGGER.error("Error creating discovery: {}", e.getMessage());
 
-    sendError(context, 500, "Internal server error");
-  }
-}
-
+  /**
+   * Handles GET requests to retrieve a discovery profile by its ID.
+   *
+   * @param context The routing context containing the HTTP request.
+   */
   private void getById(RoutingContext context)
   {
     try
@@ -160,6 +174,7 @@ private void create(RoutingContext context)
         return;
       }
 
+      // Prepare query to fetch discovery profile by ID.
       var query = new JsonObject()
         .put(QUERY, QueryConstant.GET_DISCOVERY_BY_ID)
         .put(PARAMS, new JsonArray().add(id));
@@ -188,9 +203,14 @@ private void create(RoutingContext context)
 
       sendError(context, 500, "Internal server error");
     }
-
   }
 
+
+  /**
+   * Handles GET requests to retrieve all discovery profiles from the database.
+   *
+   * @param context The routing context containing the HTTP request.
+   */
   private void getAll(RoutingContext context)
   {
     var query = new JsonObject().put(QUERY, QueryConstant.GET_ALL_DISCOVERIES);
@@ -201,8 +221,9 @@ private void create(RoutingContext context)
         if (SUCCESS.equals(result.getString(MSG)))
         {
           context.response()
-            .setStatusCode(200)
-            .end(result.encodePrettily());
+                .setStatusCode(200)
+                .putHeader("Content-Type", "application/json")
+                .end(result.encodePrettily());
         }
         else
         {
@@ -212,10 +233,16 @@ private void create(RoutingContext context)
       .onFailure(err -> sendError(context, 500, "Database query failed: " + err.getMessage()));
   }
 
+  /**
+   * Handles DELETE requests to remove a discovery profile by its ID.
+   *
+   * @param context The routing context containing the HTTP request.
+   */
   private void delete(RoutingContext context)
   {
     try
     {
+      // Parse and validate discovery ID from path.
       var idStr = context.pathParam(ID);
 
       long id;
@@ -231,19 +258,21 @@ private void create(RoutingContext context)
         return;
       }
 
+      // Prepare query to delete discovery profile by ID.
       var query = new JsonObject()
-        .put(QUERY, QueryConstant.DELETE_DISCOVERY)
-        .put(PARAMS, new JsonArray().add(id));
+                  .put(QUERY, QueryConstant.DELETE_DISCOVERY)
+                  .put(PARAMS, new JsonArray().add(id));
 
       executeQuery(query)
         .onSuccess(result ->
         {
-          JsonArray resultArray = result.getJsonArray("result");
+          var resultArray = result.getJsonArray("result");
 
           if (SUCCESS.equals(result.getString(MSG)) && !resultArray.isEmpty())
           {
             context.response()
               .setStatusCode(200)
+              .putHeader("Content-Type", "application/json")
               .end(result.encodePrettily());
           }
           else
@@ -262,7 +291,11 @@ private void create(RoutingContext context)
 
   }
 
-
+  /**
+   * Handles PUT requests to update an existing discovery profile, including its credentials.
+   *
+   * @param context The routing context containing the HTTP request.
+   */
   private void update(RoutingContext context)
   {
     try
@@ -336,15 +369,18 @@ private void create(RoutingContext context)
           return;
         }
       }
-      // Update discovery profile
+
+      // Update discovery profile in database.
       var updateQuery = new JsonObject()
         .put(QUERY, QueryConstant.UPDATE_DISCOVERY)
         .put(PARAMS, new JsonArray().add(discoveryName).add(ip).add(port).add(id));
 
+      // Delete existing credential mappings.
       var deleteQuery = new JsonObject()
         .put(QUERY, QueryConstant.DELETE_DISCOVERY_CREDENTIALS)
         .put(PARAMS, new JsonArray().add(id));
 
+      // Prepare batch insert for new credential mappings.
       var batchParams = new JsonArray();
 
       for (int i = 0; i < credIds.size(); i++)
@@ -357,16 +393,16 @@ private void create(RoutingContext context)
         .put(BATCHPARAMS, batchParams);
 
       executeQuery(updateQuery)
-        .compose(v -> executeQuery(deleteQuery))
-        .compose(v -> executeBatchQuery(batchQuery))
-        .onSuccess(v -> context.response()
-          .setStatusCode(200)
-          .putHeader("Content-Type", "application/json")
-          .end(new JsonObject()
-            .put(MSG, SUCCESS)
-            .put("id", id)
-            .encodePrettily()))
-        .onFailure(err -> sendError(context, 500, "Failed to update discovery: " + err.getMessage()));
+            .compose(v -> executeQuery(deleteQuery))
+            .compose(v -> executeBatchQuery(batchQuery))
+            .onSuccess(v -> context.response()
+                  .setStatusCode(200)
+                  .putHeader("Content-Type", "application/json")
+                  .end(new JsonObject()
+                        .put(MSG, SUCCESS)
+                        .put("id", id)
+                        .encodePrettily()))
+            .onFailure(err -> sendError(context, 500, "Failed to update discovery: " + err.getMessage()));
     }
     catch (Exception e)
     {
@@ -376,6 +412,11 @@ private void create(RoutingContext context)
     }
   }
 
+  /**
+   * Handles POST requests to run a discovery profile, scanning the network for devices.
+   *
+   * @param context The routing context containing the HTTP request.
+   */
   private void run(RoutingContext context)
   {
     try
@@ -395,15 +436,15 @@ private void create(RoutingContext context)
         return;
       }
 
-
+      // Execute discovery using the DiscoveryService.
       DiscoveryService.runDiscovery(id)
-        .onSuccess(results -> context.response()
-          .setStatusCode(200)
-          .putHeader("Content-Type", "application/json")
-          .end(new JsonObject()
-            .put(MSG, SUCCESS)
-            .put("results", results)
-            .encodePrettily()))
+          .onSuccess(results -> context.response()
+                .setStatusCode(200)
+                .putHeader("Content-Type", "application/json")
+                .end(new JsonObject()
+                      .put(MSG, SUCCESS)
+                      .put("results", results)
+                      .encodePrettily()))
         .onFailure(err ->
         {
           var status = err.getMessage().contains("Discovery profile not found") ? 404 : 500;

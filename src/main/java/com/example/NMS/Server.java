@@ -17,9 +17,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
-public class ApiServer extends AbstractVerticle
+public class Server extends AbstractVerticle
 {
-  private static final Logger LOGGER = LoggerFactory.getLogger(ApiServer.class);
+  private static final Logger LOGGER = LoggerFactory.getLogger(Server.class);
 
   @Override
   public void start(Promise<Void> startPromise)
@@ -35,10 +35,9 @@ public class ApiServer extends AbstractVerticle
     }
 
     JWTAuth jwtAuth = JWTAuth.create(vertx, new JWTAuthOptions()
-      .addPubSecKey(new PubSecKeyOptions()
-        .setAlgorithm("HS256")
-        .setBuffer(jwtSecret)));
-
+                                    .addPubSecKey(new PubSecKeyOptions()
+                                                        .setAlgorithm("HS256")
+                                                       .setBuffer(jwtSecret)));
 
 
     var router = Router.router(vertx);
@@ -51,12 +50,27 @@ public class ApiServer extends AbstractVerticle
 
     var provisionRoute = Router.router(vertx);
 
+    router.errorHandler(401, ctx -> {
+        ctx.response()
+          .setStatusCode(401)
+          .putHeader("Content-Type", "application/json")
+          .end(new JsonObject()
+            .put("error", "Unauthorized")
+            .put("message", "Invalid or missing JWT token")
+            .encode());
+      });
+
     router.route("/api/*").handler(BodyHandler.create());
-    router.route("/api/*").handler(ctx -> {
+
+    router.route("/api/*").handler(ctx ->
+    {
       String path = ctx.normalizedPath();
-      if (path.endsWith("/register") || path.endsWith("/login")) {
+      if (path.endsWith("/register") || path.endsWith("/login"))
+      {
         ctx.next();
-      } else {
+      }
+      else
+      {
         JWTAuthHandler.create(jwtAuth).handle(ctx);
       }
     });
