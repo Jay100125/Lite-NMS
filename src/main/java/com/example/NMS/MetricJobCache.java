@@ -152,7 +152,7 @@ public class MetricJobCache
     // Decrement remaining time and collect jobs ready to poll
     metricJobCache.forEach((metricId, job) ->
     {
-      int newRemainingTime = job.getInteger("remaining_time") - TIMER_INTERVAL_SECONDS;
+      var newRemainingTime = job.getInteger("remaining_time") - TIMER_INTERVAL_SECONDS;
 
       if (newRemainingTime <= 0)
       {

@@ -16,6 +16,8 @@ import io.vertx.ext.web.handler.JWTAuthHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static com.example.NMS.constant.Constant.JWT_SECRET;
+
 
 public class Server extends AbstractVerticle
 {
@@ -25,19 +27,10 @@ public class Server extends AbstractVerticle
   public void start(Promise<Void> startPromise)
   {
 
-    String jwtSecret = System.getenv("JWT_SECRET") != null ?
-      System.getenv("JWT_SECRET") :
-      "your-secure-jwt-secret-1234567890abcdef";
-    if (jwtSecret.isEmpty()) {
-      LOGGER.error("JWT secret is empty");
-      startPromise.fail("JWT secret is empty");
-      return;
-    }
-
     JWTAuth jwtAuth = JWTAuth.create(vertx, new JWTAuthOptions()
                                     .addPubSecKey(new PubSecKeyOptions()
                                                         .setAlgorithm("HS256")
-                                                       .setBuffer(jwtSecret)));
+                                                       .setBuffer(JWT_SECRET)));
 
 
     var router = Router.router(vertx);
@@ -49,16 +42,6 @@ public class Server extends AbstractVerticle
     var credentialRoute = Router.router(vertx);
 
     var provisionRoute = Router.router(vertx);
-
-    router.errorHandler(401, ctx -> {
-        ctx.response()
-          .setStatusCode(401)
-          .putHeader("Content-Type", "application/json")
-          .end(new JsonObject()
-            .put("error", "Unauthorized")
-            .put("message", "Invalid or missing JWT token")
-            .encode());
-      });
 
     router.route("/api/*").handler(BodyHandler.create());
 
@@ -90,6 +73,16 @@ public class Server extends AbstractVerticle
     new Discovery().init(discoveryRoute);
 
     new Provision().init(provisionRoute);
+
+    router.errorHandler(401, ctx -> {
+      ctx.response()
+        .setStatusCode(401)
+        .putHeader("Content-Type", "application/json")
+        .end(new JsonObject()
+          .put("error", "Unauthorized")
+          .put("message", "Invalid or missing JWT token")
+          .encode());
+    });
 
     vertx.createHttpServer().requestHandler(router)
       .listen(8080)

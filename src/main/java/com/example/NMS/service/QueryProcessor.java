@@ -40,7 +40,7 @@ public class QueryProcessor
 
             LOGGER.info("Database query executed: {}", query);
 
-            LOGGER.info("Database query result: {}", result);
+//            LOGGER.info("Database query result: {}", result);
 
             promise.complete(result);
           }
@@ -82,7 +82,7 @@ public class QueryProcessor
 
             LOGGER.info("Batch query executed: {}", batchQuery.getString("query"));
 
-            LOGGER.info("Batch query result: {}", result);
+//            LOGGER.info("Batch query result: {}", result);
 
             promise.complete(result);
           }

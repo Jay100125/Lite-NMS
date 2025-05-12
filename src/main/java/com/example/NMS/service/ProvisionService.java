@@ -53,7 +53,7 @@ public class ProvisionService
 
         for (var i = 0; i < resultArray.size(); i++)
         {
-          JsonObject row = resultArray.getJsonObject(i);
+          var row = resultArray.getJsonObject(i);
 
           discoveryResults.put(row.getString("ip"), row);
         }

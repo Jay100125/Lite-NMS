@@ -164,7 +164,7 @@ public class DiscoveryService
 
       LOGGER.info("Plugin input: {}", pluginInput.encodePrettily());
 
-      var pluginResults = runSSHPlugin(pluginInput);
+      var pluginResults = spawnPlugin(pluginInput);
 
       for (var i = 0; i < reachResults.size(); i++)
       {

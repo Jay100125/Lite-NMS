@@ -1,6 +1,7 @@
 package com.example.NMS;
 
 import com.example.NMS.database.Database;
+import com.example.NMS.polling.Polling;
 import io.vertx.core.Vertx;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

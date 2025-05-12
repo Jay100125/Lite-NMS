@@ -12,6 +12,8 @@ public class Constant {
 
   public static final String DB_PASSWORD = "Mind@123";
 
+  public static final String JWT_SECRET = "MySecretKey";
+
   public static final String EVENTBUS_ADDRESS = "DATABASE";
 
   public static final String EVENTBUS_BATCH_ADDRESS = "DATABASE_BATCH";

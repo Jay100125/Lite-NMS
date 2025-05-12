@@ -251,7 +251,7 @@ public class Utility
       return results;
     }
 
-    public static JsonArray runSSHPlugin(JsonObject pluginJson)
+    public static JsonArray spawnPlugin(JsonObject pluginJson)
     {
       var results = new JsonArray();
 
@@ -313,9 +313,6 @@ public class Utility
         {
           stderr.append(line).append("\n");
         }
-  //      if (stderr.length() > 0) {
-  //        logger.warn("SSH plugin stderr: {}", stderr.toString());
-  //      }
 
         // Wait for the process to exit
         var exitCode = process.waitFor(2, java.util.concurrent.TimeUnit.SECONDS) ? process.exitValue() : -1;

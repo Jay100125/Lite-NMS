@@ -114,7 +114,7 @@ public class Polling extends AbstractVerticle
       {
         LOGGER.info("Plugin input: {}", pluginInput.encodePrettily());
 
-        JsonArray results = Utility.runSSHPlugin(pluginInput);
+        JsonArray results = Utility.spawnPlugin(pluginInput);
 
         LOGGER.info("Plugin result: {}", results.encodePrettily());
 
