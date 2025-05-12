@@ -3,6 +3,7 @@ package com.example.NMS.api;
 import com.example.NMS.MetricJobCache;
 import com.example.NMS.constant.QueryConstant;
 import com.example.NMS.service.ProvisionService;
+import com.example.NMS.utility.ApiUtils;
 import com.example.NMS.utility.Utility;
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonArray;
@@ -51,7 +52,7 @@ public class Provision
       }
       catch (Exception e)
       {
-        sendError(context, 400, "Invalid discovery ID");
+        ApiUtils.sendError(context, 400, "Invalid discovery ID");
 
         return;
       }
@@ -61,7 +62,7 @@ public class Provision
 
       if (body == null || !body.containsKey(SELECTED_IPS))
       {
-        sendError(context, 400, "Missing selected IPs");
+        ApiUtils.sendError(context, 400, "Missing selected IPs");
 
         return;
       }
@@ -70,7 +71,7 @@ public class Provision
 
       if (selectedIps == null || selectedIps.isEmpty())
       {
-        sendError(context, 400, "No IPs selected for provisioning");
+        ApiUtils.sendError(context, 400, "No IPs selected for provisioning");
 
         return;
       }
@@ -82,7 +83,7 @@ public class Provision
 
         if (!Utility.isValidIPv4(ip))
         {
-          sendError(context, 400, "Invalid IP address: " + ip);
+          ApiUtils.sendError(context, 400, "Invalid IP address: " + ip);
 
           return;
         }
@@ -101,7 +102,7 @@ public class Provision
         {
           var status = err.getMessage().contains("No valid IPs") || err.getMessage().contains("No IPs provided") ? 400 : 500;
 
-          sendError(context, status, "Failed to create provisioning jobs: " + err.getMessage());
+          ApiUtils.sendError(context, status, "Failed to create provisioning jobs: " + err.getMessage());
         });
     }
     catch (Exception e)
@@ -129,16 +130,16 @@ public class Provision
           }
           else
           {
-            sendError(context, 404, "No provisioning jobs found");
+            ApiUtils.sendError(context, 404, "No provisioning jobs found");
           }
         })
-        .onFailure(err -> sendError(context, 500, "Database query failed: " + err.getMessage()));
+        .onFailure(err -> ApiUtils.sendError(context, 500, "Database query failed: " + err.getMessage()));
     }
     catch (Exception e)
     {
       LOGGER.error("Error getting all provisions: {}", e.getMessage());
 
-      sendError(context, 500, "Internal server error");
+      ApiUtils.sendError(context, 500, "Internal server error");
     }
   }
 
@@ -156,7 +157,7 @@ public class Provision
       }
       catch (NumberFormatException e)
       {
-        sendError(context, 400, "Invalid provision job ID");
+        ApiUtils.sendError(context, 400, "Invalid provision job ID");
 
         return;
       }
@@ -180,16 +181,16 @@ public class Provision
           }
           else
           {
-            sendError(context, 404, "Provisioning job not found");
+            ApiUtils.sendError(context, 404, "Provisioning job not found");
           }
         })
-        .onFailure(err -> sendError(context, 500, "Database query failed: " + err.getMessage()));
+        .onFailure(err -> ApiUtils.sendError(context, 500, "Database query failed: " + err.getMessage()));
     }
     catch (Exception e)
     {
       LOGGER.error("Error deleting provision job: {}", e.getMessage());
 
-      sendError(context, 500, "Internal server error");
+      ApiUtils.sendError(context, 500, "Internal server error");
     }
   }
 
@@ -207,7 +208,7 @@ public class Provision
       }
       catch (NumberFormatException e)
       {
-        sendError(context, 400, "Invalid provisioning job ID");
+        ApiUtils.sendError(context, 400, "Invalid provisioning job ID");
 
         return;
       }
@@ -216,7 +217,7 @@ public class Provision
 
       if (body == null || !body.containsKey("metrics"))
       {
-        sendError(context, 400, "Missing metrics configuration");
+        ApiUtils.sendError(context, 400, "Missing metrics configuration");
 
         return;
       }
@@ -225,7 +226,7 @@ public class Provision
 
       if (metrics == null || metrics.isEmpty())
       {
-        sendError(context, 400, "No metrics specified");
+        ApiUtils.sendError(context, 400, "No metrics specified");
 
         return;
       }
@@ -244,13 +245,13 @@ public class Provision
 
         if (name == null || interval == null || interval <= 0)
         {
-          sendError(context, 400, "Invalid metric configuration: " + metric.encode());
+          ApiUtils.sendError(context, 400, "Invalid metric configuration: " + metric.encode());
 
           return;
         }
         if (!Arrays.asList("CPU", "MEMORY", "DISK", "NETWORK", "PROCESS", "UPTIME").contains(name))
         {
-          sendError(context, 400, "Invalid metric name: " + name);
+          ApiUtils.sendError(context, 400, "Invalid metric name: " + name);
 
           return;
         }
@@ -265,13 +266,13 @@ public class Provision
 
       // Delete stale metrics
       var deleteStaleQuery = new JsonObject()
-        .put("query", QueryConstant.DELETE_STALE_METRICS)
-        .put("params", new JsonArray().add(provisioningJobId).add(metricNames));
+        .put(QUERY, QueryConstant.DELETE_STALE_METRICS)
+        .put(PARAMS, new JsonArray().add(provisioningJobId).add(metricNames));
 
       // Upsert metrics
       var upsertQuery = new JsonObject()
-        .put("query", QueryConstant.UPSERT_METRICS)
-        .put("batchParams", batchParams);
+        .put(QUERY, QueryConstant.UPSERT_METRICS)
+        .put(BATCHPARAMS, batchParams);
 
       executeQuery(deleteStaleQuery)
         .compose(v -> executeBatchQuery(upsertQuery))
@@ -361,13 +362,13 @@ public class Provision
             .put("msg", "Success")
             .put("provisioning_job_id", provisioningJobId)
             .encodePrettily()))
-        .onFailure(err -> sendError(context, err.getMessage().contains("not found") ? 404 : 500, "Failed to update metrics: " + err.getMessage()));
+        .onFailure(err -> ApiUtils.sendError(context, err.getMessage().contains("not found") ? 404 : 500, "Failed to update metrics: " + err.getMessage()));
     }
     catch (Exception e)
     {
       LOGGER.error("Error updating metrics: {}", e.getMessage());
 
-      sendError(context, 500, "Internal server error");
+      ApiUtils.sendError(context, 500, "Internal server error");
     }
   }
 
@@ -393,28 +394,17 @@ public class Provision
           }
           else
           {
-            sendError(context, 404, "No polled data found");
+            ApiUtils.sendError(context, 404, "No polled data found");
           }
         })
-        .onFailure(err -> sendError(context, 500, "Database query failed: " + err.getMessage()));
+        .onFailure(err -> ApiUtils.sendError(context, 500, "Database query failed: " + err.getMessage()));
     }
     catch (Exception e)
     {
       LOGGER.error("Error fetching polled data: {}", e.getMessage());
 
-      sendError(context, 500, "Internal server error");
+      ApiUtils.sendError(context, 500, "Internal server error");
     }
   }
 
-
-  private void sendError(RoutingContext ctx, int statusCode, String errorMessage)
-  {
-    ctx.response()
-      .setStatusCode(statusCode)
-      .putHeader("Content-Type", "application/json")
-      .end(new JsonObject()
-        .put(statusCode == 400 || statusCode == 409 ? "msg" : "status", "failed")
-        .put("error", errorMessage)
-        .encode());
-  }
 }

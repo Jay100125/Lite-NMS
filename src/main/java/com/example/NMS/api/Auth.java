@@ -1,6 +1,7 @@
 package com.example.NMS.api;
 
 import com.example.NMS.constant.QueryConstant;
+import com.example.NMS.utility.ApiUtils;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.auth.jwt.JWTAuth;
@@ -68,7 +69,7 @@ public class Auth
 
       if (body == null)
       {
-        sendError(ctx, 400, "Missing request body");
+        ApiUtils.sendError(ctx, 400, "Missing request body");
 
         return;
       }
@@ -79,7 +80,7 @@ public class Auth
 
       if (username == null || username.trim().isEmpty() || password == null || password.length() < 8)
       {
-        sendError(ctx, 400, "Invalid username or password (minimum 8 characters for password)");
+        ApiUtils.sendError(ctx, 400, "Invalid username or password (minimum 8 characters for password)");
 
         return;
       }
@@ -119,7 +120,7 @@ public class Auth
             }
             else
             {
-              sendError(ctx, 500, "Failed to register user: No ID returned from database.");
+              ApiUtils.sendError(ctx, 500, "Failed to register user: No ID returned from database.");
             }
           }
           else
@@ -129,13 +130,13 @@ public class Auth
 
             if (error.contains("users_username_key"))
             { // Check for unique constraint violation on username
-              sendError(ctx, 409, "Username already exists");
+              ApiUtils.sendError(ctx, 409, "Username already exists");
             }
             else
             {
               LOGGER.error("User registration failed for {}. DB Error: {}", username, error);
 
-              sendError(ctx, 500, error);
+              ApiUtils.sendError(ctx, 500, error);
             }
           }
         })
@@ -143,7 +144,7 @@ public class Auth
         {
           LOGGER.error("User registration query execution failed for username {}: {}", username, err.getMessage(), err);
 
-          sendError(ctx, 500, "Failed to register user: " + err.getMessage());
+          ApiUtils.sendError(ctx, 500, "Failed to register user: " + err.getMessage());
         });
 
     }
@@ -151,7 +152,7 @@ public class Auth
     {
       LOGGER.error("Unexpected error during registration: {}", e.getMessage(), e);
 
-      sendError(ctx, 500, "An unexpected error occurred during registration.");
+      ApiUtils.sendError(ctx, 500, "An unexpected error occurred during registration.");
     }
   }
 
@@ -175,7 +176,7 @@ public class Auth
 
       if (body == null)
       {
-        sendError(ctx, 400, "Missing request body");
+        ApiUtils.sendError(ctx, 400, "Missing request body");
 
         return;
       }
@@ -186,7 +187,7 @@ public class Auth
 
       if (username == null || username.trim().isEmpty() || password == null || password.isEmpty())
       {
-        sendError(ctx, 400, "Username and password are required");
+        ApiUtils.sendError(ctx, 400, "Username and password are required");
 
         return;
       }
@@ -209,9 +210,9 @@ public class Auth
             if (BCrypt.checkpw(password, storedHash))
             {
               // Set token expiration to 60 minutes
-              long currentTimeSeconds = System.currentTimeMillis() / 1000;
+              var currentTimeSeconds = System.currentTimeMillis() / 1000;
 
-              long expiryTimeSeconds = currentTimeSeconds + (60 * 60); // 60 minutes
+              var expiryTimeSeconds = currentTimeSeconds + (24 * 60 * 60); // 60 minutes
 
               var claims = new JsonObject()
                 .put("sub", username)
@@ -227,7 +228,7 @@ public class Auth
                 .setStatusCode(200)
                 .putHeader("Content-Type", "application/json")
                 .end(response
-                  .put(MSG, SUCCESS) // Using MSG constant
+                  .put(MSG, SUCCESS) 
                   .put("token", token)
                   .encodePrettily());
             }
@@ -235,7 +236,7 @@ public class Auth
             {
               LOGGER.warn("Failed login attempt for username: {} (Incorrect password)", username);
 
-              sendError(ctx, 401, "Invalid username or password");
+              ApiUtils.sendError(ctx, 401, "Invalid username or password");
             }
           }
           else
@@ -243,7 +244,7 @@ public class Auth
             // User not found or DB error reported where msg != SUCCESS
             LOGGER.warn("Failed login attempt for username: {} (User not found or DB issue reported by QueryProcessor)", username);
 
-            sendError(ctx, 401, "Invalid username or password");
+            ApiUtils.sendError(ctx, 401, "Invalid username or password");
           }
         })
         .onFailure(err ->
@@ -251,29 +252,15 @@ public class Auth
           // This block handles failures in the executeQuery Future itself
           LOGGER.error("User login query execution failed for username {}: {}", username, err.getMessage(), err);
 
-          sendError(ctx, 500, "Login failed due to a server error: " + err.getMessage());
+          ApiUtils.sendError(ctx, 500, "Login failed due to a server error: " + err.getMessage());
         });
     }
     catch (Exception e)
     {
       LOGGER.error("Unexpected error during login: {}", e.getMessage(), e);
 
-      sendError(ctx, 500, "An unexpected error occurred during login.");
+     ApiUtils.sendError(ctx, 500, "An unexpected error occurred during login.");
     }
   }
 
-  private void sendError(RoutingContext ctx, int statusCode, String errorMessage)
-  {
-    response.clear();
-
-    LOGGER.info("Sending error response: Status {}, Message: {}", statusCode, errorMessage); // Changed to info for less verbose general logging
-
-    ctx.response()
-      .setStatusCode(statusCode)
-      .putHeader("Content-Type", "application/json")
-      .end(response // Reusing the class member 'response' JsonObject
-        .put(statusCode == 400 || statusCode == 409 || statusCode == 401 ? MSG : "status", "failed") // Use MSG for client errors, "status" for server
-        .put(ERROR, errorMessage) // ERROR constant for "error" key
-        .encode());
-  }
 }

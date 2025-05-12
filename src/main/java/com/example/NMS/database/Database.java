@@ -14,7 +14,6 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.List;
 
 import static com.example.NMS.constant.Constant.EVENTBUS_ADDRESS;
 import static com.example.NMS.constant.Constant.EVENTBUS_BATCH_ADDRESS;
@@ -79,7 +78,7 @@ public class Database extends AbstractVerticle
 
         if (value instanceof JsonArray jsonArray)
         { // Handle array types for SQL (e.g., ANY($2::varchar[]))
-          String[] s = new String[jsonArray.size()];
+          var s = new String[jsonArray.size()];
 
           for (var j = 0; j < jsonArray.size(); j++)
           {
@@ -113,11 +112,11 @@ public class Database extends AbstractVerticle
               // Handle array types from database result
               if (columnValue != null && columnValue.getClass().isArray())
               {
-                Object[] array = (Object[]) columnValue;
+                var array = (Object[]) columnValue;
 
                 var jsonArrayValue = new JsonArray();
 
-                for (Object item : array)
+                for (var item : array)
                 {
                   jsonArrayValue.add(item);
                 }
@@ -163,15 +162,15 @@ public class Database extends AbstractVerticle
         return;
       }
 
-      List<Tuple> batch = new ArrayList<>();
+      var batch = new ArrayList<Tuple>();
       // Convert JsonArray of batch parameters to a List of Tuples
-      for (int i = 0; i < batchParams.size(); i++)
+      for (var i = 0; i < batchParams.size(); i++)
       {
         var params = batchParams.getJsonArray(i);
 
         var tuple = Tuple.tuple();
         // This part needs to be robust and handle different types and nulls correctly based on your specific queries
-        for (int j = 0; j < params.size(); j++)
+        for (var j = 0; j < params.size(); j++)
         {
           var value = params.getValue(j);
           // Add specific type handling if necessary, e.g., for JSONB
@@ -274,13 +273,13 @@ public class Database extends AbstractVerticle
         inputStream.close();
 
         // Split schema into individual DDL statements
-        String[] ddlStatements = schema.split(";");
+        var ddlStatements = schema.split(";");
 
-        List<Future<Void>> executionFutures = new ArrayList<>();
+        var executionFutures = new ArrayList<Future<Void>>();
 
-        for (String statement : ddlStatements)
+        for (var statement : ddlStatements)
         {
-          String trimmedStatement = statement.trim();
+          var trimmedStatement = statement.trim();
 
           if (!trimmedStatement.isEmpty())
           {
@@ -290,17 +289,17 @@ public class Database extends AbstractVerticle
             LOGGER.debug("Executing DDL: {}", trimmedStatement);
 
             client.query(trimmedStatement).execute()
-              .onSuccess(res -> {
+              .onSuccess(res ->
+              {
                 LOGGER.debug("Successfully executed DDL: {}", trimmedStatement);
+
                 statementPromise.complete();
               })
               .onFailure(err -> {
-                // Log DDL execution errors but don't necessarily fail the whole process
-                // if the error is like "table already exists" etc.
-                // More sophisticated error handling might be needed here.
-                LOGGER.warn("Failed to execute DDL: {} - Error: {}. This might be okay if the object already exists.", trimmedStatement, err.getMessage());
 
-                statementPromise.complete(); //  Complete even on specific errors to allow startup
+                LOGGER.error("Failed to execute DDL: {} - Error: {}", trimmedStatement, err.getMessage(), err);
+
+                statementPromise.fail(err);
               });
             executionFutures.add(statementPromise.future());
           }

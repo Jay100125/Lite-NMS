@@ -64,7 +64,7 @@ public class ProvisionService
 
         var batchParams = new JsonArray();
 
-        for (int i = 0; i < selectedIps.size(); i++)
+        for (var i = 0; i < selectedIps.size(); i++)
         {
           var ip = selectedIps.getString(i);
 

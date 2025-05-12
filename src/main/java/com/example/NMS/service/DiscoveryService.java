@@ -9,10 +9,9 @@ import org.slf4j.LoggerFactory;
 
 import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import static com.example.NMS.Main.vertx;
-import static com.example.NMS.constant.Constant.SUCCESS;
+import static com.example.NMS.constant.Constant.*;
 import static com.example.NMS.service.QueryProcessor.*;
 import static com.example.NMS.utility.Utility.*;
 
@@ -29,12 +28,12 @@ public class DiscoveryService
   public static Future<JsonArray> runDiscovery(long id)
   {
     var fetchQuery = new JsonObject()
-      .put("query", QueryConstant.RUN_DISCOVERY)
-      .put("params", new JsonArray().add(id));
+      .put(QUERY, QueryConstant.RUN_DISCOVERY)
+      .put(PARAMS, new JsonArray().add(id));
 
     var setRunningQuery = new JsonObject()
-      .put("query", QueryConstant.SET_DISCOVERY_STATUS)
-      .put("params", new JsonArray().add(true).add(id));
+      .put(QUERY, QueryConstant.SET_DISCOVERY_STATUS)
+      .put(PARAMS, new JsonArray().add(true).add(id));
 
     return executeQuery(setRunningQuery)
       .compose(v -> executeQuery(fetchQuery))
@@ -58,7 +57,7 @@ public class DiscoveryService
         // Process credentials
         var credentials = new JsonArray();
 
-        Set<Long> seenCredentialIds = new HashSet<>();
+        var seenCredentialIds = new HashSet<Long>();
         for (var i = 0; i < rows.size(); i++)
         {
           var row = rows.getJsonObject(i);
@@ -90,8 +89,8 @@ public class DiscoveryService
           .compose(results ->
           {
             var resetStatusQuery = new JsonObject()
-              .put("query", QueryConstant.SET_DISCOVERY_STATUS)
-              .put("params", new JsonArray().add(true).add(id));
+              .put(QUERY, QueryConstant.SET_DISCOVERY_STATUS)
+              .put(PARAMS, new JsonArray().add(true).add(id));
 
             return executeQuery(resetStatusQuery)
               .map(results);
@@ -99,8 +98,8 @@ public class DiscoveryService
           .recover(err -> {
 
             var resetStatusQuery = new JsonObject()
-              .put("query", QueryConstant.SET_DISCOVERY_STATUS)
-              .put("params", new JsonArray().add(false).add(id));
+              .put(QUERY, QueryConstant.SET_DISCOVERY_STATUS)
+              .put(PARAMS, new JsonArray().add(false).add(id));
 
             return executeQuery(resetStatusQuery)
               .compose(v -> Future.failedFuture(err));
@@ -254,8 +253,8 @@ public class DiscoveryService
     }
 
     var message = new JsonObject()
-      .put("query", QueryConstant.INSERT_DISCOVERY_RESULT)
-      .put("batchParams", batchParams);
+      .put(QUERY, QueryConstant.INSERT_DISCOVERY_RESULT)
+      .put(BATCHPARAMS, batchParams);
 
     return executeBatchQuery(message)
       .compose(result ->

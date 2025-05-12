@@ -26,7 +26,7 @@ public class Utility
   /// Resolve IP addresses from a given input string.
   public static List<String> resolveIpAddresses(String ipInput) throws Exception
     {
-      List<String> ipList = new ArrayList<>();
+      var ipList = new ArrayList<String>();
 
       if (ipInput.contains("-"))
       {
@@ -109,7 +109,7 @@ public class Utility
     {
       byte[] octets = ip.getAddress();
 
-      long result = 0;
+      var result = 0;
 
       for (byte octet : octets)
       {
@@ -133,12 +133,12 @@ public class Utility
     {
       var results = new JsonArray();
 
-      Set<String> aliveIps = new HashSet<>();
+      var aliveIps = new HashSet<String>();
 
       // Run bulk fping with -a to get alive hosts
       try
       {
-        List<String> command = new ArrayList<>();
+        var command = new ArrayList<String>();
 
         command.add("fping");
         command.add("-a"); // Show alive hosts
@@ -179,9 +179,9 @@ public class Utility
         logger.info("FPING command: {}", String.join(" ", command));
         // Log stderr for debugging
 
-        BufferedReader stderrReader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
+        var stderrReader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
 
-        StringBuilder stderr = new StringBuilder();
+        var stderr = new StringBuilder();
 
         while ((line = stderrReader.readLine()) != null)
         {
@@ -221,7 +221,7 @@ public class Utility
             // Use nc to check port
             var pb = new ProcessBuilder("nc", "-z", "-w", "1", ip, String.valueOf(port));
 
-            Process process = pb.start();
+            var process = pb.start();
 
             var exitCode = process.waitFor();
 

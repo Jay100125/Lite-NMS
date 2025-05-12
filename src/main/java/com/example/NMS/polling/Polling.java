@@ -51,7 +51,7 @@ public class Polling extends AbstractVerticle
     try
     {
       // Group jobs by IP and credentials to batch SSH calls
-      Map<String, List<JsonObject>> jobsByDevice = new HashMap<>();
+      var jobsByDevice = new HashMap<String, List<JsonObject>>();
 
       for (var job : jobs)
       {

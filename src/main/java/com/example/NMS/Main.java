@@ -23,12 +23,12 @@ public class Main
 
         return vertx.deployVerticle(Database.class.getName());
       })
-//      .compose(res ->
-//      {
-//        LOGGER.info("database verticle is deployed");
-//
-//        return vertx.deployVerticle(Polling.class.getName()).onComplete(apiRes -> LOGGER.info("polling verticle deployed"));
-//      })
+      .compose(res ->
+      {
+        LOGGER.info("database verticle is deployed");
+
+        return vertx.deployVerticle(Polling.class.getName()).onComplete(apiRes -> LOGGER.info("polling verticle deployed"));
+      })
       .onComplete(handler -> {
       if (handler.succeeded())
       {
@@ -37,6 +37,17 @@ public class Main
       else
       {
         LOGGER.error("Application failed to start {}", String.valueOf(handler.cause()));
+
+        vertx.close(shutdown -> {
+          if (shutdown.succeeded())
+          {
+            LOGGER.info("Vert.x instance shut down successfully");
+          }
+          else
+          {
+            LOGGER.error("Failed to shut down Vert.x instance: {}", shutdown.cause().getMessage(), shutdown.cause());
+          }
+        });
       }
     });
   }
