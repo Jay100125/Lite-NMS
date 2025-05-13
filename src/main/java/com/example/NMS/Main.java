@@ -12,17 +12,22 @@ public class Main
 {
   private static final Logger LOGGER = LoggerFactory.getLogger(Main.class);
 
-  public static Vertx vertx = Vertx.vertx();
+  public static final Vertx vertx = Vertx.vertx();
 
   public static void main(String[] args)
   {
     LOGGER.info("Starting NMS");
 
     vertx.deployVerticle(new Server())
+
       .compose(res -> vertx.deployVerticle(Database.class.getName()))
+
       .compose(res -> vertx.deployVerticle(Discovery.class.getName()))
+
       .compose(res -> vertx.deployVerticle(Polling.class.getName()))
+
       .onComplete(handler -> {
+
           if (handler.succeeded())
           {
             LOGGER.info("Application started");
@@ -32,6 +37,7 @@ public class Main
             LOGGER.error("Application failed to start {}", handler.cause().getMessage());
 
             vertx.close(shutdown -> {
+
               if (shutdown.succeeded())
               {
                 LOGGER.info("Vert.x instance shut down successfully");

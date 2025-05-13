@@ -289,7 +289,8 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 
 import static com.example.NMS.constant.Constant.*;
-import static com.example.NMS.service.QueryProcessor.*;
+import static com.example.NMS.service.QueryProcessor.executeBatchQuery;
+import static com.example.NMS.service.QueryProcessor.executeQuery;
 import static com.example.NMS.utility.Utility.*;
 
 public class Discovery extends AbstractVerticle

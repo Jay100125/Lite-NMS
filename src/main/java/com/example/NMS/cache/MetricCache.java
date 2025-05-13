@@ -1,7 +1,6 @@
 package com.example.NMS.cache;
 
 import com.example.NMS.service.QueryProcessor;
-import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
@@ -27,7 +26,7 @@ public class MetricCache
   private static boolean isCacheInitialized = false;
 
   // Initialize cache by querying the database
-  public static void refreshCache(Vertx vertx)
+  public static void init()
   {
     if (isCacheInitialized)
     {

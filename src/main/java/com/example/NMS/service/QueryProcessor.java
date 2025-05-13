@@ -6,7 +6,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static com.example.NMS.Main.vertx;
-import static com.example.NMS.constant.Constant.*;
+import static com.example.NMS.constant.Constant.DB_EXECUTE_BATCH_QUERY;
+import static com.example.NMS.constant.Constant.DB_EXECUTE_QUERY;
 
 public class QueryProcessor
 {

@@ -1,12 +1,13 @@
 package com.example.NMS.database;
 
-import com.example.NMS.constant.QueryConstant;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
+import io.vertx.sqlclient.Row;
+import io.vertx.sqlclient.RowSet;
 import io.vertx.sqlclient.SqlClient;
 import io.vertx.sqlclient.Tuple;
 import org.slf4j.Logger;
@@ -15,8 +16,7 @@ import org.slf4j.LoggerFactory;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 
-import static com.example.NMS.constant.Constant.DB_EXECUTE_QUERY;
-import static com.example.NMS.constant.Constant.DB_EXECUTE_BATCH_QUERY;
+import static com.example.NMS.constant.Constant.*;
 
 /**
  * The Database verticle handles database operations by listening on the event bus.
@@ -40,8 +40,8 @@ public class Database extends AbstractVerticle
       .onSuccess(v ->
       {
         LOGGER.info("Database schema initialization successful.");
-        // Register event bus consumers after schema initialization
-        registerEventBusConsumers();
+        // set event bus consumers after schema initialization
+        setUpConsumers();
 
         startPromise.complete();
 
@@ -58,16 +58,16 @@ public class Database extends AbstractVerticle
   /**
    * Registers consumers on the event bus to handle database queries.
    */
-  private void registerEventBusConsumers()
+  private void setUpConsumers()
   {
     // Consumer for single queries
     vertx.eventBus().<JsonObject>localConsumer(DB_EXECUTE_QUERY, message ->
     {
       var input = message.body();
 
-      var query = input.getString("query");
+      var query = input.getString(QUERY);
 
-      var paramArray = input.getJsonArray("params", new JsonArray());
+      var paramArray = input.getJsonArray(PARAMS, new JsonArray());
 
       var params = Tuple.tuple();
 
@@ -172,71 +172,56 @@ public class Database extends AbstractVerticle
         // This part needs to be robust and handle different types and nulls correctly based on your specific queries
         for (var j = 0; j < params.size(); j++)
         {
-          var value = params.getValue(j);
-          // Add specific type handling if necessary, e.g., for JSONB
-          if (query.equals(QueryConstant.INSERT_POLLED_DATA) && j == 2 && value instanceof String)
-          {
-            //  the third parameter for INSERT_POLLED_DATA is JSON data stored as a string
-            try
-            {
-              tuple.addJsonObject(new JsonObject((String) value));
-            }
-            catch (Exception e)
-            {
-              LOGGER.warn("Failed to parse string to JsonObject for batch query: {}, param index: {}, value: {}", query, j, value);
-
-              tuple.addValue(null); // Or handle error appropriately
-            }
-          }
-          else if (value instanceof JsonObject || value instanceof JsonArray)
-          {
-            tuple.addValue(value); // Directly add JsonObject/JsonArray
-          }
-          else
-          {
-            tuple.addValue(value);
-          }
+          tuple.addValue(params.getValue(j));
         }
         batch.add(tuple);
       }
 
       LOGGER.debug("Executing batch query: {}, number of tuples: {}", query, batch.size());
 
-      client.preparedQuery(query).executeBatch(batch, ar -> {
+      //execute the batch query
+      client.preparedQuery(query).executeBatch(batch, asyncResult -> {
 
-        if (ar.succeeded())
+        if (asyncResult.succeeded())
         {
           var insertedIds = new JsonArray();
-          // Assuming all batch queries that return IDs have an 'id' column
-          // You might need to adjust this if your returning columns differ
-          try
+
+          RowSet<Row> rows = asyncResult.result();
+
+          // Iterate through all RowSets
+          while (rows != null)
           {
-            ar.result().forEach(row ->
+            // Process each row in the current RowSet
+            for (Row row : rows)
             {
-              if (row != null && row.size() > 0 && (row.getColumnIndex("id") != -1))
+              var idIndex = row.getColumnIndex("id");
+
+              if (idIndex != -1 && row.getValue(idIndex) != null)
               {
-                insertedIds.add(row.getLong("id"));
+                var id = row.getLong(idIndex);
+
+                LOGGER.info("Extracted ID: {} for query: {}", id, query);
+
+                insertedIds.add(id);
               }
-              else if (row != null && row.size() > 0 && (row.getColumnIndex("metric_id") != -1))
-              { // For UPSERT_METRICS
-                insertedIds.add(row.getLong("metric_id"));
+              else
+              {
+                LOGGER.warn("No 'id' column found for query: {}. Row content: {}",
+                  query, row.toJson().encodePrettily());
               }
-            });
-          }
-          catch (Exception e)
-          {
-            LOGGER.warn("Could not extract all IDs from batch result for query {}: {}", query, e.getMessage());
+            }
+            rows = rows.next();
           }
 
-          LOGGER.debug("Batch query successful: {}, affected rows: {}", query, ar.result().rowCount());
+          LOGGER.debug("Batch query successful: {}, extracted IDs: {}", query, insertedIds.size());
 
-          message.reply(new JsonObject().put("msg", "Success").put("insertedIds", insertedIds).put("rowCount", ar.result().rowCount()));
+          message.reply(new JsonObject().put("msg", "Success").put("insertedIds", insertedIds));
         }
         else
         {
-          LOGGER.error("❌ Batch query failed: {}. Error: {}", query, ar.cause().getMessage(), ar.cause());
+          LOGGER.error("❌ Batch query failed: {}. Error: {}", query, asyncResult.cause().getMessage());
 
-          message.reply(new JsonObject().put("msg", "Error").put("ERROR", ar.cause().getMessage()));
+          message.fail(500, asyncResult.cause().getMessage());
         }
       });
     });
@@ -289,17 +274,17 @@ public class Database extends AbstractVerticle
             LOGGER.debug("Executing DDL: {}", trimmedStatement);
 
             client.query(trimmedStatement).execute()
-              .onSuccess(res ->
+              .onSuccess(result ->
               {
                 LOGGER.debug("Successfully executed DDL: {}", trimmedStatement);
 
                 statementPromise.complete();
               })
-              .onFailure(err -> {
+              .onFailure(error ->
+              {
+                LOGGER.error("Failed to execute DDL: {} - Error: {}", trimmedStatement, error.getMessage());
 
-                LOGGER.error("Failed to execute DDL: {} - Error: {}", trimmedStatement, err.getMessage(), err);
-
-                statementPromise.fail(err);
+                statementPromise.fail(error);
               });
             executionFutures.add(statementPromise.future());
           }

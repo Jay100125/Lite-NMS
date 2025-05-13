@@ -58,7 +58,7 @@ public class QueryConstant
 
   public static final String INSERT_DEFAULT_METRICS =
     "INSERT INTO metrics (provisioning_job_id, name, polling_interval, is_enabled) " +
-      "VALUES ($1, $2, $3, $4) RETURNING metric_id";
+      "VALUES ($1, $2, $3, $4) RETURNING metric_id as id";
 
 //  public static final String DELETE_STALE_METRICS =
 //    "DELETE FROM metrics " +
@@ -73,7 +73,7 @@ public static final String DISABLE_STALE_METRICS =
       "ON CONFLICT (provisioning_job_id, name) " +
       "DO UPDATE SET polling_interval = COALESCE(EXCLUDED.polling_interval, metrics.polling_interval), " +
       "is_enabled = EXCLUDED.is_enabled " +
-      "RETURNING metric_id";
+      "RETURNING metric_id as id";
 
   public static final String INSERT_POLLED_DATA =
     "INSERT INTO polled_data (job_id, metric_type, data) " +

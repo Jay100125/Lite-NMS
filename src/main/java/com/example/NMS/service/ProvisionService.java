@@ -90,6 +90,8 @@ public class ProvisionService
           }
         }
 
+        LOGGER.info(batchParams.encodePrettily());
+
         if (validIps.isEmpty())
         {
           return Future.failedFuture("No valid IPs for provisioning: " + invalidIps.encodePrettily());
@@ -119,7 +121,11 @@ public class ProvisionService
               return Future.failedFuture(error);
             }
 
+            LOGGER.info("_________________________________________");
+            LOGGER.info(insertResult.encodePrettily());
             var insertedIds = insertResult.getJsonArray("insertedIds");
+
+            LOGGER.info(insertedIds.encodePrettily());
 
             var metricsBatch = new JsonArray();
 

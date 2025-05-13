@@ -186,11 +186,9 @@ public class Credential
 
             if (SUCCESS.equals(result.getString(MSG)) && !resultArray.isEmpty())
             {
-              context.response()
-                .setStatusCode(200)
+              context.response().setStatusCode(200)
                 .putHeader("Content-Type", "application/json")
-                .end(new JsonObject()
-                  .put(MSG, SUCCESS)
+                .end(new JsonObject().put(MSG, SUCCESS)
                   .put(ID, resultArray.getJsonObject(0).getLong(ID))
                   .encodePrettily());
             }

@@ -29,7 +29,7 @@ public class Polling extends AbstractVerticle
     try
     {
       // Initialize the cache
-      MetricCache.refreshCache(vertx);
+      MetricCache.init();
 
       // Set up periodic polling
       vertx.setPeriodic(TIMER_INTERVAL_SECONDS * 1000, this::handlePolling);
