@@ -27,7 +27,7 @@ public class MetricCache
   private static boolean isCacheInitialized = false;
 
   // Initialize cache by querying the database
-  public static synchronized void refreshCache(Vertx vertx)
+  public static void refreshCache(Vertx vertx)
   {
     if (isCacheInitialized)
     {

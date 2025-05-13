@@ -1,7 +1,6 @@
 package com.example.NMS.api.handlers;
 
 import com.example.NMS.constant.QueryConstant;
-import com.example.NMS.service.DiscoveryService;
 import com.example.NMS.utility.ApiUtils;
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonArray;
@@ -11,6 +10,7 @@ import io.vertx.ext.web.RoutingContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static com.example.NMS.Main.vertx;
 import static com.example.NMS.constant.Constant.*;
 import static com.example.NMS.service.QueryProcessor.*;
 
@@ -35,6 +35,8 @@ public class Discovery
     discoveryRoute.put("/api/discovery" + "/:id").handler(this::update);
 
     discoveryRoute.post("/api/discovery" + "/:id/run").handler(this::run);
+
+    discoveryRoute.get("/api/discovery" + "/:id/result").handler(this::getResults);
   }
 
   /**
@@ -160,18 +162,10 @@ public class Discovery
   {
     try
     {
-      var idStr = context.pathParam(ID);
+      var id = ApiUtils.parseIdFromPath(context, ID);
 
-      long id;
-
-      try
+      if (id == -1)
       {
-        id = Long.parseLong(idStr);
-      }
-      catch (Exception e)
-      {
-        ApiUtils.sendError(context, 400, "invalid ID");
-
         return;
       }
 
@@ -447,40 +441,170 @@ public class Discovery
   {
     try
     {
-      var idStr = context.pathParam(ID);
+      var id = ApiUtils.parseIdFromPath(context, ID);
 
-      long id;
-
-      try
+      if (id == -1)
       {
-        id = Long.parseLong(idStr);
-      }
-      catch (Exception e)
-      {
-        ApiUtils.sendError(context, 400, "Invalid ID");
-
         return;
       }
 
-      // Execute discovery using the DiscoveryService.
-      DiscoveryService.runDiscovery(id)
-          .onSuccess(results -> context.response()
-                .setStatusCode(200)
-                .putHeader("Content-Type", "application/json")
-                .end(new JsonObject()
-                      .put(MSG, SUCCESS)
-                      .put("results", results)
-                      .encodePrettily()))
-        .onFailure(err ->
-        {
-          var status = err.getMessage().contains("Discovery profile not found") ? 404 : 500;
+      var checkQuery = new JsonObject()
+        .put(QUERY, QueryConstant.GET_DISCOVERY_BY_ID)
+        .put(PARAMS, new JsonArray().add(id));
 
-          ApiUtils.sendError(context, status, "Failed to run discovery: " + err.getMessage());
-        });
+      executeQuery(checkQuery).onComplete(result -> {
+        if (result.succeeded())
+        {
+          var resultArray = result.result().getJsonArray("result");
+
+          if (resultArray.isEmpty())
+          {
+            ApiUtils.sendError(context, 404, "Discovery profile not found");
+
+            return;
+          }
+
+          var request = new JsonObject().put("id", id);
+          vertx.eventBus().send(DISCOVERY_RUN,request);
+
+          context.response()
+            .setStatusCode(202)
+            .putHeader("Content-Type", "application/json")
+            .end(new JsonObject()
+              .put(MSG, "Discovery is currently being processed")
+              .put("id", id)
+              .encodePrettily());
+        }
+        else
+        {
+          ApiUtils.sendError(context, 500, "Failed to check discovery profile: " + result.cause().getMessage());
+        }
+      });
     }
     catch (Exception e)
     {
       LOGGER.error("Failed to process discovery request");
+    }
+  }
+
+//  private void getResults(RoutingContext context)
+//  {
+//    try
+//    {
+//      var id = ApiUtils.parseIdFromPath(context, ID);
+//
+//      if (id == -1)
+//      {
+//        return;
+//      }
+//
+//      // Query to retrieve discovery results for this ID
+//      var query = new JsonObject()
+//        .put(QUERY, QueryConstant.GET_DISCOVERY_RESULTS)
+//        .put(PARAMS, new JsonArray().add(id));
+//
+//      executeQuery(query)
+//        .onSuccess(result -> {
+//          if (SUCCESS.equals(result.getString(MSG)))
+//          {
+//            var resultArray = result.getJsonArray("result");
+//
+//            if (resultArray.isEmpty())
+//            {
+//              // No results yet
+//              context.response()
+//                .setStatusCode(200)
+//                .putHeader("Content-Type", "application/json")
+//                .end(new JsonObject()
+//                  .put(MSG, "No discovery results found")
+//                  .put("results", new JsonArray())
+//                  .encodePrettily());
+//            }
+//            else
+//            {
+//              // Results found
+//              context.response()
+//                .setStatusCode(200)
+//                .putHeader("Content-Type", "application/json")
+//                .end(new JsonObject()
+//                  .put(MSG, SUCCESS)
+//                  .put("results", resultArray)
+//                  .encodePrettily());
+//            }
+//          }
+//          else
+//          {
+//            ApiUtils.sendError(context, 500, "Failed to retrieve discovery results");
+//          }
+//        })
+//        .onFailure(err -> {
+//          LOGGER.error("Error retrieving discovery results: {}", err.getMessage());
+//          ApiUtils.sendError(context, 500, "Database query failed: " + err.getMessage());
+//        });
+//    }
+//    catch (Exception e)
+//    {
+//      LOGGER.error("Error retrieving discovery results: {}", e.getMessage());
+//      ApiUtils.sendError(context, 500, "Internal server error");
+//    }
+//  }
+
+  private void getResults(RoutingContext context)
+  {
+    try
+    {
+      var id = ApiUtils.parseIdFromPath(context, ID);
+
+      if (id == -1)
+      {
+        ApiUtils.sendError(context, 400, "Invalid discovery ID");
+        return;
+      }
+
+      var query = new JsonObject()
+        .put(QUERY, QueryConstant.GET_DISCOVERY_RESULTS)
+        .put(PARAMS, new JsonArray().add(id));
+
+      executeQuery(query)
+        .onSuccess(result -> {
+          if (SUCCESS.equals(result.getString(MSG)))
+          {
+            var resultArray = result.getJsonArray("result");
+
+            if (resultArray.isEmpty())
+            {
+              context.response()
+                .setStatusCode(200)
+                .putHeader("Content-Type", "application/json")
+                .end(new JsonObject()
+                  .put(MSG, "No discovery results found")
+                  .put("results", new JsonArray())
+                  .encodePrettily());
+            }
+            else
+            {
+              context.response()
+                .setStatusCode(200)
+                .putHeader("Content-Type", "application/json")
+                .end(new JsonObject()
+                    .put(MSG, SUCCESS)
+                    .put("results", resultArray)
+                    .encodePrettily());
+            }
+          }
+          else
+          {
+            ApiUtils.sendError(context, 500, "Failed to retrieve discovery results");
+          }
+        })
+        .onFailure(err -> {
+          ApiUtils.sendError(context, 500, "Database query failed: " + err.getMessage());
+        });
+    }
+    catch (Exception e)
+    {
+      LOGGER.error("Error retrieving discovery results: {}", e.getMessage());
+      ApiUtils.sendError(context, 500, "Internal server error");
     }
   }
 

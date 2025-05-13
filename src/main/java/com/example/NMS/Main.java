@@ -2,6 +2,7 @@ package com.example.NMS;
 
 import com.example.NMS.api.Server;
 import com.example.NMS.database.Database;
+import com.example.NMS.discovery.Discovery;
 import com.example.NMS.polling.Polling;
 import io.vertx.core.Vertx;
 import org.slf4j.Logger;
@@ -18,38 +19,29 @@ public class Main
     LOGGER.info("Starting NMS");
 
     vertx.deployVerticle(new Server())
-      .compose(res ->
-      {
-        LOGGER.info("HTTP server verticle deployed");
-
-        return vertx.deployVerticle(Database.class.getName());
-      })
-      .compose(res ->
-      {
-        LOGGER.info("database verticle is deployed");
-
-        return vertx.deployVerticle(Polling.class.getName()).onComplete(apiRes -> LOGGER.info("polling verticle deployed"));
-      })
+      .compose(res -> vertx.deployVerticle(Database.class.getName()))
+      .compose(res -> vertx.deployVerticle(Discovery.class.getName()))
+      .compose(res -> vertx.deployVerticle(Polling.class.getName()))
       .onComplete(handler -> {
-      if (handler.succeeded())
-      {
-        LOGGER.info("Application started");
-      }
-      else
-      {
-        LOGGER.error("Application failed to start {}", String.valueOf(handler.cause()));
-
-        vertx.close(shutdown -> {
-          if (shutdown.succeeded())
+          if (handler.succeeded())
           {
-            LOGGER.info("Vert.x instance shut down successfully");
+            LOGGER.info("Application started");
           }
           else
           {
-            LOGGER.error("Failed to shut down Vert.x instance: {}", shutdown.cause().getMessage(), shutdown.cause());
+            LOGGER.error("Application failed to start {}", handler.cause().getMessage());
+
+            vertx.close(shutdown -> {
+              if (shutdown.succeeded())
+              {
+                LOGGER.info("Vert.x instance shut down successfully");
+              }
+              else
+              {
+                LOGGER.error("Failed to shut down Vert.x instance: {}", shutdown.cause().getMessage());
+              }
+            });
           }
-        });
-      }
     });
   }
 

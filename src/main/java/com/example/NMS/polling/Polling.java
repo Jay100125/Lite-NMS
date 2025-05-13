@@ -6,6 +6,7 @@ import com.example.NMS.constant.QueryConstant;
 import com.example.NMS.service.QueryProcessor;
 import com.example.NMS.utility.Utility;
 import io.vertx.core.AbstractVerticle;
+import io.vertx.core.Promise;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
@@ -23,14 +24,27 @@ public class Polling extends AbstractVerticle
   private static final int TIMER_INTERVAL_SECONDS = 10;
 
   @Override
-  public void start()
+  public void start(Promise<Void> startPromise)
   {
-    // Initialize the cache
-    MetricCache.refreshCache(vertx);
+    try
+    {
+      // Initialize the cache
+      MetricCache.refreshCache(vertx);
 
-    vertx.setPeriodic(TIMER_INTERVAL_SECONDS * 1000, this::handlePolling);
+      // Set up periodic polling
+      vertx.setPeriodic(TIMER_INTERVAL_SECONDS * 1000, this::handlePolling);
 
-    LOGGER.info("PollingVerticle started with timer interval {} seconds", TIMER_INTERVAL_SECONDS);
+      LOGGER.info("PollingVerticle started with timer interval {} seconds", TIMER_INTERVAL_SECONDS);
+
+      // Signal successful deployment
+      startPromise.complete();
+    }
+    catch (Exception exception)
+    {
+      LOGGER.error("Failed to start PollingVerticle", exception);
+
+      startPromise.fail(exception);
+    }
   }
 
   // Handle periodic polling

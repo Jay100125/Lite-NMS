@@ -18,6 +18,8 @@ public class Constant {
 
   public static final String DB_EXECUTE_BATCH_QUERY = "db.execute.batch.query";
 
+  public static final String DISCOVERY_RUN = "discovery.run";
+
   public static final String SUCCESS = "Success";
 
   public static final String USERNAME = "username";

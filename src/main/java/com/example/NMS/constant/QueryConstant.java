@@ -108,5 +108,26 @@ public static final String DISABLE_STALE_METRICS =
   public static final String VALIDATE_PROVISIONING_JOB =
     "SELECT id FROM provisioning_jobs WHERE id = $1";
 
+  public static final String GET_BY_RUN_ID =
+    """
+                  SELECT
+                  dp.id AS id,
+                  dp.discovery_profile_name AS name,
+                  dp.ip AS ip,
+                  dp.status AS status,
+                  dp.port AS port,
+                  ARRAY_AGG(
+                      JSON_BUILD_OBJECT(
+                          'id', cp.id,
+                          'username', cp.cred_data->>'user',
+                          'password', cp.cred_data->>'password'
+                      )
+                  ) AS credential
+              FROM discovery_profiles dp
+              LEFT JOIN discovery_credential_mapping dc ON dp.id = dc.discovery_id
+              LEFT JOIN credential_profile cp ON dc.credential_profile_id = cp.id
+              WHERE dp.id = $1
+              GROUP BY dp.id, dp.discovery_profile_name, dp.ip, dp.status, dp.port;""";
 
+  public static final String GET_DISCOVERY_RESULTS = "SELECT * FROM discovery_result WHERE discovery_id = $1";
 }

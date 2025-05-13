@@ -27,7 +27,7 @@ public class Server extends AbstractVerticle
   public void start(Promise<Void> startPromise)
   {
 
-    JWTAuth jwtAuth = JWTAuth.create(vertx, new JWTAuthOptions()
+    var jwtAuth = JWTAuth.create(vertx, new JWTAuthOptions()
                                     .addPubSecKey(new PubSecKeyOptions()
                                                         .setAlgorithm("HS256")
                                                        .setBuffer(JWT_SECRET)));

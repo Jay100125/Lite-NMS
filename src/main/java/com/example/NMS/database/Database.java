@@ -131,15 +131,15 @@ public class Database extends AbstractVerticle
             jsonRows.add(obj);
           });
 
-          LOGGER.debug("Query successful: {}, result size: {}", query, jsonRows.size());
+            LOGGER.debug("Query successful: {}, result size: {}", query, jsonRows.size());
 
-          message.reply(new JsonObject().put("msg", "Success").put("result", jsonRows));
-        }
-        else
-        {
-          LOGGER.error("❌ Query failed: {}. Error: {}", query, ar.cause().getMessage(), ar.cause());
+            message.reply(new JsonObject().put("msg", "Success").put("result", jsonRows));
+          }
+          else
+          {
+            LOGGER.error("❌ Query failed: {}. Error: {}", query, ar.cause().getMessage(), ar.cause());
 
-          message.reply(new JsonObject().put("msg", "fail").put("ERROR", ar.cause().getMessage()));
+            message.reply(new JsonObject().put("msg", "fail").put("ERROR", ar.cause().getMessage()));
         }
       });
     });
