@@ -1,6 +1,6 @@
 package com.example.NMS.service;
 
-import com.example.NMS.MetricJobCache;
+import com.example.NMS.cache.MetricCache;
 import com.example.NMS.constant.QueryConstant;
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonArray;
@@ -123,7 +123,7 @@ public class ProvisionService
 
             var metricsBatch = new JsonArray();
 
-            String[] defaultMetrics = {"CPU", "MEMORY", "DISK"};
+            String[] allMetrics = {"CPU", "MEMORY", "DISK", "UPTIME", "NETWORK", "PROCESS"};
 
             var defaultInterval = 300;
 
@@ -131,12 +131,13 @@ public class ProvisionService
             {
               var provisioningJobId = insertedIds.getLong(i);
 
-              for (var metric : defaultMetrics)
+              for (var metric : allMetrics)
               {
                 metricsBatch.add(new JsonArray()
                   .add(provisioningJobId)
                   .add(metric)
-                  .add(defaultInterval));
+                  .add(defaultInterval)
+                  .add(true));
               }
             }
 
@@ -163,9 +164,9 @@ public class ProvisionService
 
                     var credData = fetchCredData(discoveryResult.getLong("credential_profile_id"));
 
-                    for (var metric : defaultMetrics)
+                    for (var metric : allMetrics)
                     {
-                      MetricJobCache.addMetricJob(
+                      MetricCache.addMetricJob(
                         metricId++,
                         provisioningJobId,
                         metric,

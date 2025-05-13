@@ -1,5 +1,6 @@
 package com.example.NMS;
 
+import com.example.NMS.api.Server;
 import io.vertx.core.Vertx;
 import io.vertx.junit5.VertxExtension;
 import io.vertx.junit5.VertxTestContext;

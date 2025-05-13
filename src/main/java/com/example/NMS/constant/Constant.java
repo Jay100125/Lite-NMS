@@ -14,17 +14,15 @@ public class Constant {
 
   public static final String JWT_SECRET = "MySecretKey";
 
-  public static final String EVENTBUS_ADDRESS = "DATABASE";
+  public static final String DB_EXECUTE_QUERY = "db.execute.query";
 
-  public static final String EVENTBUS_BATCH_ADDRESS = "DATABASE_BATCH";
+  public static final String DB_EXECUTE_BATCH_QUERY = "db.execute.batch.query";
 
   public static final String SUCCESS = "Success";
 
-  public static final String WINDOWS = "windows";
+  public static final String USERNAME = "username";
 
-  public static final String LINUX = "linux";
-
-  public static final String SNMP = "snmp";
+  public static final String RESULT = "result";
 
   public static final String CREDENTIAL_NAME = "credential_name";
 
@@ -60,3 +58,12 @@ public class Constant {
 
 
 }
+
+
+// TODO eventbus address NAME
+// ar in asynchronous result
+// TODO done all operation in one transaction
+// TODO Catch handle error
+// discvoery of multiple same credential
+// provisionJObId
+// why by default 3 metric

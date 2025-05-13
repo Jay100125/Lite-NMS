@@ -1,4 +1,4 @@
-package com.example.NMS.api;
+package com.example.NMS.api.handlers;
 
 import com.example.NMS.constant.QueryConstant;
 import com.example.NMS.service.DiscoveryService;

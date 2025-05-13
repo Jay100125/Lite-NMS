@@ -1,9 +1,9 @@
-package com.example.NMS;
+package com.example.NMS.api;
 
-import com.example.NMS.api.Auth;
-import com.example.NMS.api.Credential;
-import com.example.NMS.api.Discovery;
-import com.example.NMS.api.Provision;
+import com.example.NMS.api.handlers.Auth;
+import com.example.NMS.api.handlers.Credential;
+import com.example.NMS.api.handlers.Discovery;
+import com.example.NMS.api.handlers.Provision;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.core.json.JsonObject;

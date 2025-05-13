@@ -1,4 +1,4 @@
-package com.example.NMS;
+package com.example.NMS.cache;
 
 import com.example.NMS.service.QueryProcessor;
 import io.vertx.core.Vertx;
@@ -13,9 +13,9 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-public class MetricJobCache
+public class MetricCache
 {
-  private static final Logger logger = LoggerFactory.getLogger(MetricJobCache.class);
+  private static final Logger LOGGER = LoggerFactory.getLogger(MetricCache.class);
 
   // Static cache of metric jobs: metric_id -> JsonObject
   private static final ConcurrentHashMap<Long, JsonObject> metricJobCache = new ConcurrentHashMap<>();
@@ -31,16 +31,17 @@ public class MetricJobCache
   {
     if (isCacheInitialized)
     {
-      logger.info("Cache already initialized, skipping refresh");
+      LOGGER.info("Cache already initialized, skipping refresh");
 
       return;
     }
 
     String query = "SELECT m.metric_id, m.provisioning_job_id, m.name AS metric_name, m.polling_interval, " +
-      "pj.ip, pj.port, cp.cred_data " +
+      "m.is_enabled, pj.ip, pj.port, cp.cred_data " +
       "FROM metrics m " +
       "JOIN provisioning_jobs pj ON m.provisioning_job_id = pj.id " +
-      "JOIN credential_profile cp ON pj.credential_profile_id = cp.id";
+      "JOIN credential_profile cp ON pj.credential_profile_id = cp.id " +
+      "WHERE m.is_enabled = true";
 
     QueryProcessor.executeQuery(new JsonObject().put("query", query))
       .onSuccess(result ->
@@ -49,9 +50,9 @@ public class MetricJobCache
 
         isCacheInitialized = true;
 
-        logger.info("Initial cache populated with {} jobs", metricJobCache.size());
+        LOGGER.info("Initial cache populated with {} jobs", metricJobCache.size());
       })
-      .onFailure(err -> logger.error("Initial cache refresh failed: {}", err.getMessage()));
+      .onFailure(err -> LOGGER.error("Initial cache refresh failed: {}", err.getMessage()));
   }
 
   // Update cache from query results
@@ -71,7 +72,9 @@ public class MetricJobCache
         .put("port", metric.getInteger("port"))
         .put("cred_data", metric.getJsonObject("cred_data"))
         .put("original_interval", metric.getInteger("polling_interval"))
-        .put("remaining_time", metric.getInteger("polling_interval"));
+        .put("remaining_time", metric.getInteger("polling_interval"))
+        .put("is_enabled", metric.getBoolean("is_enabled"));
+
 
       metricJobCache.put(metricId, job);
     });
@@ -92,7 +95,7 @@ public class MetricJobCache
 
     metricJobCache.put(metricId, job);
 
-    logger.info("Added metric job to cache: metric_id={}", metricId);
+    LOGGER.info("Added metric job to cache: metric_id={}", metricId);
   }
 
   // Remove a metric job from the cache
@@ -100,7 +103,7 @@ public class MetricJobCache
   {
     metricJobCache.remove(metricId);
 
-    logger.info("Removed metric job from cache: metric_id={}", metricId);
+    LOGGER.info("Removed metric job from cache: metric_id={}", metricId);
   }
 
 
@@ -115,12 +118,12 @@ public class MetricJobCache
 
     if (!removedIds.isEmpty())
     {
-      logger.info("Removed {} metric jobs for provisioning_job_id={}", removedIds.size(), provisioningJobId);
+      LOGGER.info("Removed {} metric jobs for provisioning_job_id={}", removedIds.size(), provisioningJobId);
     }
   }
 
   // Update an existing metric job
-  public static void updateMetricJob(Long metricId, Long provisioningJobId, String metricName, int pollingInterval, String ip, int port, JsonObject credData)
+  public static void updateMetricJob(Long metricId, Long provisioningJobId, String metricName, int pollingInterval, String ip, int port, JsonObject credData, Boolean isEnabled)
   {
     var job = new JsonObject()
       .put("metric_id", metricId)
@@ -130,11 +133,20 @@ public class MetricJobCache
       .put("port", port)
       .put("cred_data", credData)
       .put("original_interval", pollingInterval)
-      .put("remaining_time", pollingInterval);
+      .put("remaining_time", pollingInterval)
+      .put("is_enabled", isEnabled);
 
-    metricJobCache.put(metricId, job);
+    if (isEnabled)
+    {
+      metricJobCache.put(metricId, job);
+    }
+    else
+    {
+      metricJobCache.remove(metricId);
+    }
 
-    logger.info("Updated metric job in cache: metric_id={}", metricId);
+
+    LOGGER.info("Updated metric job in cache: metric_id={}", metricId);
   }
 
   public static Map<Long, JsonObject> getMetricJobsByProvisioningJobId(Long provisioningJobId)
@@ -169,7 +181,7 @@ public class MetricJobCache
 
     if (!jobsToPoll.isEmpty())
     {
-      logger.info("Found {} jobs to poll", jobsToPoll.size());
+      LOGGER.info("Found {} jobs to poll", jobsToPoll.size());
     }
 
     return jobsToPoll;

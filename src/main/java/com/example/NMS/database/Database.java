@@ -15,8 +15,8 @@ import org.slf4j.LoggerFactory;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 
-import static com.example.NMS.constant.Constant.EVENTBUS_ADDRESS;
-import static com.example.NMS.constant.Constant.EVENTBUS_BATCH_ADDRESS;
+import static com.example.NMS.constant.Constant.DB_EXECUTE_QUERY;
+import static com.example.NMS.constant.Constant.DB_EXECUTE_BATCH_QUERY;
 
 /**
  * The Database verticle handles database operations by listening on the event bus.
@@ -61,7 +61,7 @@ public class Database extends AbstractVerticle
   private void registerEventBusConsumers()
   {
     // Consumer for single queries
-    vertx.eventBus().<JsonObject>localConsumer(EVENTBUS_ADDRESS, message ->
+    vertx.eventBus().<JsonObject>localConsumer(DB_EXECUTE_QUERY, message ->
     {
       var input = message.body();
 
@@ -145,7 +145,7 @@ public class Database extends AbstractVerticle
     });
 
     // Consumer for batch queries
-    vertx.eventBus().<JsonObject>localConsumer(EVENTBUS_BATCH_ADDRESS, message ->
+    vertx.eventBus().<JsonObject>localConsumer(DB_EXECUTE_BATCH_QUERY, message ->
     {
       var request = message.body();
 

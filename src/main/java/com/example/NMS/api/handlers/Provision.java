@@ -1,6 +1,6 @@
-package com.example.NMS.api;
+package com.example.NMS.api.handlers;
 
-import com.example.NMS.MetricJobCache;
+import com.example.NMS.cache.MetricCache;
 import com.example.NMS.constant.QueryConstant;
 import com.example.NMS.service.ProvisionService;
 import com.example.NMS.utility.ApiUtils;
@@ -173,7 +173,7 @@ public class Provision
 
           if (SUCCESS.equals(result.getString(MSG)) && !resultArray.isEmpty())
           {
-            MetricJobCache.removeMetricJobsByProvisioningJobId(id);
+            MetricCache.removeMetricJobsByProvisioningJobId(id);
 
             context.response()
               .setStatusCode(200)
@@ -206,10 +206,9 @@ public class Provision
       {
         provisioningJobId = Long.parseLong(idStr);
       }
-      catch (NumberFormatException e)
+      catch (Exception e)
       {
         ApiUtils.sendError(context, 400, "Invalid provisioning job ID");
-
         return;
       }
 
@@ -218,7 +217,6 @@ public class Provision
       if (body == null || !body.containsKey("metrics"))
       {
         ApiUtils.sendError(context, 400, "Missing metrics configuration");
-
         return;
       }
 
@@ -227,58 +225,58 @@ public class Provision
       if (metrics == null || metrics.isEmpty())
       {
         ApiUtils.sendError(context, 400, "No metrics specified");
-
         return;
       }
 
       var batchParams = new JsonArray();
 
-      var metricNames = new JsonArray();
-
       for (int i = 0; i < metrics.size(); i++)
       {
         var metric = metrics.getJsonObject(i);
 
-        var name = metric.getString("name");
+        var name = metric.getString("metric_type");
 
-        var interval = metric.getInteger("polling_interval");
+        var isEnabled = metric.getBoolean("is_enabled");
 
-        if (name == null || interval == null || interval <= 0)
+        if (name == null || isEnabled == null)
         {
-          ApiUtils.sendError(context, 400, "Invalid metric configuration: " + metric.encode());
-
+          ApiUtils.sendError(context, 400, "Invalid metric configuration: metric_type and is_enabled are required");
           return;
         }
+
         if (!Arrays.asList("CPU", "MEMORY", "DISK", "NETWORK", "PROCESS", "UPTIME").contains(name))
         {
           ApiUtils.sendError(context, 400, "Invalid metric name: " + name);
-
           return;
         }
+
+        Integer interval = metric.getInteger("polling_interval");
+
+        if (isEnabled && (interval == null || interval <= 0))
+        {
+          ApiUtils.sendError(context, 400, "Invalid metric configuration: interval must be provided and positive when is_enabled is true");
+          return;
+        }
+
+        // Use default interval of 300 when is_enabled is false and interval is null
+        int effectiveInterval = (interval != null && interval > 0) ? interval : 300;
 
         batchParams.add(new JsonArray()
           .add(provisioningJobId)
           .add(name)
-          .add(interval));
-
-        metricNames.add(name);
+          .add(effectiveInterval)
+          .add(isEnabled));
       }
 
-      // Delete stale metrics
-      var deleteStaleQuery = new JsonObject()
-        .put(QUERY, QueryConstant.DELETE_STALE_METRICS)
-        .put(PARAMS, new JsonArray().add(provisioningJobId).add(metricNames));
-
-      // Upsert metrics
+      // Upsert provided metrics
       var upsertQuery = new JsonObject()
-        .put(QUERY, QueryConstant.UPSERT_METRICS)
-        .put(BATCHPARAMS, batchParams);
+        .put("query", QueryConstant.UPSERT_METRICS)
+        .put("batchParams", batchParams);
 
-      executeQuery(deleteStaleQuery)
-        .compose(v -> executeBatchQuery(upsertQuery))
+      executeBatchQuery(upsertQuery)
         .compose(v ->
         {
-          // Combined query to fetch provisioning job and cred_data
+          // Fetch provisioning job details
           JsonObject combinedQuery = new JsonObject()
             .put("query", "SELECT pj.ip, pj.port, pj.credential_profile_id, cp.cred_data AS cred_data " +
               "FROM provisioning_jobs pj " +
@@ -302,37 +300,22 @@ public class Provision
 
               var credData = job.getJsonObject("cred_data", new JsonObject());
 
-              // Fetch current metric IDs
+              // Fetch updated metrics
               JsonObject fetchMetricsQuery = new JsonObject()
-                .put("query", "SELECT metric_id, name, polling_interval FROM metrics WHERE provisioning_job_id = $1")
-                .put("params", new JsonArray().add(provisioningJobId));
+                .put("query", "SELECT metric_id, name, polling_interval, is_enabled FROM metrics WHERE provisioning_job_id = $1 AND name = ANY($2::metric_name[])")
+                .put("params", new JsonArray().add(provisioningJobId).add(new JsonArray(metrics.stream()
+                  .map(m -> ((JsonObject) m).getString("metric_type"))
+                  .toList())));
 
               return executeQuery(fetchMetricsQuery)
                 .compose(metricsResult ->
                 {
-                  var currentMetrics = metricsResult.getJsonArray("result");
+                  var updatedMetrics = metricsResult.getJsonArray("result");
 
-                  // Remove stale metric jobs from cache
-                  var metricJobs = MetricJobCache.getMetricJobsByProvisioningJobId(provisioningJobId);
-
-                  for (var entry : metricJobs.entrySet())
+                  // Update cache only for provided metrics
+                  for (var i = 0; i < updatedMetrics.size(); i++)
                   {
-                    var metricId = entry.getKey();
-
-                    var metricJob = entry.getValue();
-
-                    var metricName = metricJob.getString("metric_name");
-
-                    if (!metricNames.contains(metricName))
-                    {
-                      MetricJobCache.removeMetricJob(metricId);
-                    }
-                  }
-
-                  // Add or update metric jobs in cache
-                  for (var i = 0; i < currentMetrics.size(); i++)
-                  {
-                    var metric = currentMetrics.getJsonObject(i);
+                    var metric = updatedMetrics.getJsonObject(i);
 
                     var metricId = metric.getLong("metric_id");
 
@@ -340,14 +323,17 @@ public class Provision
 
                     var pollingInterval = metric.getInteger("polling_interval");
 
-                    MetricJobCache.updateMetricJob(
+                    var isEnabled = metric.getBoolean("is_enabled");
+
+                    MetricCache.updateMetricJob(
                       metricId,
                       provisioningJobId,
                       metricName,
                       pollingInterval,
                       ip,
                       port,
-                      credData
+                      credData,
+                      isEnabled
                     );
                   }
 
@@ -367,9 +353,9 @@ public class Provision
     catch (Exception e)
     {
       LOGGER.error("Error updating metrics: {}", e.getMessage());
-
       ApiUtils.sendError(context, 500, "Internal server error");
     }
+
   }
 
   public void getAllPolledData(RoutingContext context)

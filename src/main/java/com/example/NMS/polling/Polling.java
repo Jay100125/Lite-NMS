@@ -1,7 +1,7 @@
 
 package com.example.NMS.polling;
 
-import com.example.NMS.MetricJobCache;
+import com.example.NMS.cache.MetricCache;
 import com.example.NMS.constant.QueryConstant;
 import com.example.NMS.service.QueryProcessor;
 import com.example.NMS.utility.Utility;
@@ -14,7 +14,6 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 public class Polling extends AbstractVerticle
 {
@@ -27,7 +26,7 @@ public class Polling extends AbstractVerticle
   public void start()
   {
     // Initialize the cache
-    MetricJobCache.refreshCache(vertx);
+    MetricCache.refreshCache(vertx);
 
     vertx.setPeriodic(TIMER_INTERVAL_SECONDS * 1000, this::handlePolling);
 
@@ -37,7 +36,7 @@ public class Polling extends AbstractVerticle
   // Handle periodic polling
   private void handlePolling(Long timerId)
   {
-    var jobsToPoll = MetricJobCache.handleTimer();
+    var jobsToPoll = MetricCache.handleTimer();
 
     if (!jobsToPoll.isEmpty())
     {

@@ -56,21 +56,24 @@ public class QueryConstant
   public static final String INSERT_PROVISIONING_JOB = "INSERT INTO provisioning_jobs (credential_profile_id, ip, port) " +
     "VALUES ($1, $2, $3) RETURNING id";
 
-  public static final String INSERT_DEFAULT_METRICS = "INSERT INTO metrics (provisioning_job_id, name, polling_interval) " +
-    "VALUES ($1, $2, $3) returning metric_id as id";
+  public static final String INSERT_DEFAULT_METRICS =
+    "INSERT INTO metrics (provisioning_job_id, name, polling_interval, is_enabled) " +
+      "VALUES ($1, $2, $3, $4) RETURNING metric_id";
 
-  public static final String DELETE_STALE_METRICS =
-    "DELETE FROM metrics " +
-      "WHERE provisioning_job_id = $1 " +
-      "AND name NOT IN (SELECT UNNEST($2::varchar[])::metric_name) returning provisioning_job_id as id";
+//  public static final String DELETE_STALE_METRICS =
+//    "DELETE FROM metrics " +
+//      "WHERE provisioning_job_id = $1 " +
+//      "AND name NOT IN (SELECT UNNEST($2::varchar[])::metric_name) returning provisioning_job_id as id";
+public static final String DISABLE_STALE_METRICS =
+  "UPDATE metrics SET is_enabled = false WHERE provisioning_job_id = $1 AND name <> ALL($2::metric_name[])";
 
-  public static final String UPSERT_METRICS = """
-            INSERT INTO metrics (provisioning_job_id, name, polling_interval)
-            VALUES ($1, $2, $3)
-            ON CONFLICT (provisioning_job_id, name)
-            DO UPDATE SET polling_interval = EXCLUDED.polling_interval
-            RETURNING metric_id as id""";
-
+  public static final String UPSERT_METRICS =
+    "INSERT INTO metrics (provisioning_job_id, name, polling_interval, is_enabled) " +
+      "VALUES ($1, $2, COALESCE($3, 300), $4) " +
+      "ON CONFLICT (provisioning_job_id, name) " +
+      "DO UPDATE SET polling_interval = COALESCE(EXCLUDED.polling_interval, metrics.polling_interval), " +
+      "is_enabled = EXCLUDED.is_enabled " +
+      "RETURNING metric_id";
 
   public static final String INSERT_POLLED_DATA =
     "INSERT INTO polled_data (job_id, metric_type, data) " +

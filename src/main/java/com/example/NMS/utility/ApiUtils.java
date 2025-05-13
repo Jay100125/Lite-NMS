@@ -22,4 +22,33 @@ public class ApiUtils
         .put("error", errorMessage)
         .encode());
   }
+
+  /**
+   * Parses a path parameter as a long ID, sending a 400 error response if invalid.
+   *
+   * @param ctx        The routing context containing the path parameters.
+   * @param paramName  The name of the path parameter (e.g., "id").
+   * @return The parsed long ID, or -1 if parsing fails (after sending an error response).
+   */
+  public static long parseIdFromPath(RoutingContext ctx, String paramName)
+  {
+    var idStr = ctx.pathParam(paramName);
+    if (idStr == null || idStr.trim().isEmpty())
+    {
+      sendError(ctx, 400, "Missing or empty ID in path");
+
+      return -1;
+    }
+
+    try
+    {
+      return Long.parseLong(idStr);
+    }
+    catch (NumberFormatException e)
+    {
+      sendError(ctx, 400, "Invalid ID format: " + idStr);
+
+      return -1;
+    }
+  }
 }

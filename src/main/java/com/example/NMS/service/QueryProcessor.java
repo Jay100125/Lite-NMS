@@ -1,20 +1,12 @@
 package com.example.NMS.service;
 
-import com.example.NMS.MetricJobCache;
-import com.example.NMS.constant.QueryConstant;
 import io.vertx.core.Future;
-import io.vertx.core.json.Json;
-import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
-import io.vertx.ext.web.RoutingContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
-
 import static com.example.NMS.Main.vertx;
 import static com.example.NMS.constant.Constant.*;
-import static com.example.NMS.utility.Utility.*;
 
 public class QueryProcessor
 {
@@ -32,7 +24,7 @@ public class QueryProcessor
     {
       try
       {
-        vertx.eventBus().<JsonObject>request(EVENTBUS_ADDRESS, query, ar ->
+        vertx.eventBus().<JsonObject>request(DB_EXECUTE_QUERY, query, ar ->
         {
           if (ar.succeeded())
           {
@@ -74,7 +66,7 @@ public class QueryProcessor
     {
       try
       {
-        vertx.eventBus().request(EVENTBUS_BATCH_ADDRESS, batchQuery, ar ->
+        vertx.eventBus().request(DB_EXECUTE_BATCH_QUERY, batchQuery, ar ->
         {
           if (ar.succeeded())
           {
