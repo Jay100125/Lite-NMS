@@ -16,6 +16,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
+import static com.example.NMS.constant.Constant.BATCHPARAMS;
+import static com.example.NMS.constant.Constant.QUERY;
+
 public class Polling extends AbstractVerticle
 {
   private static final Logger LOGGER = LoggerFactory.getLogger(Polling.class);
@@ -153,8 +156,6 @@ public class Polling extends AbstractVerticle
     {
       var resultObj = (JsonObject) result;
 
-//      logger.info("Result: {}", resultObj.encodePrettily());
-
       if ("success".equals(resultObj.getString("status")))
       {
         var jobId = resultObj.getLong("provision_profile_id");
@@ -175,8 +176,8 @@ public class Polling extends AbstractVerticle
     if (batchParams.isEmpty()) return;
 
     var batchQuery = new JsonObject()
-      .put("query", QueryConstant.INSERT_POLLED_DATA)
-      .put("batchParams", batchParams);
+      .put(QUERY, QueryConstant.INSERT_POLLED_DATA)
+      .put(BATCHPARAMS, batchParams);
 
     QueryProcessor.executeBatchQuery(batchQuery)
       .onSuccess(r -> LOGGER.info("Stored {} metrics", batchParams.size()))

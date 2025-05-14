@@ -98,7 +98,7 @@
 //      executeQuery(query)
 //        .onSuccess(dbResult ->
 //        {
-//          if (SUCCESS.equals(dbResult.getString(MSG)))
+//          if (SUCCESS.equals(dbResult.getString(MESSAGE)))
 //          {
 //            var resultArray = dbResult.getJsonArray("result");
 //
@@ -114,7 +114,7 @@
 //                .setStatusCode(201)
 //                .putHeader("Content-Type", "application/json")
 //                .end(response
-//                  .put(MSG, SUCCESS)
+//                  .put(MESSAGE, SUCCESS)
 //                  .put("user_id", userId)
 //                  .encodePrettily());
 //            }
@@ -200,7 +200,7 @@
 //      executeQuery(query)
 //        .onSuccess(dbResult ->
 //        {
-//          if (SUCCESS.equals(dbResult.getString(MSG)) && dbResult.getJsonArray("result") != null && !dbResult.getJsonArray("result").isEmpty())
+//          if (SUCCESS.equals(dbResult.getString(MESSAGE)) && dbResult.getJsonArray("result") != null && !dbResult.getJsonArray("result").isEmpty())
 //          {
 //            var user = dbResult.getJsonArray("result").getJsonObject(0);
 //
@@ -228,7 +228,7 @@
 //                .setStatusCode(200)
 //                .putHeader("Content-Type", "application/json")
 //                .end(response
-//                  .put(MSG, SUCCESS)
+//                  .put(MESSAGE, SUCCESS)
 //                  .put("token", token)
 //                  .encodePrettily());
 //            }
@@ -309,17 +309,17 @@ public class Auth
   /**
    * Handles user registration by validating input, hashing the password, and storing the user in the database.
    *
-   * @param ctx The routing context containing the HTTP request.
+   * @param context The routing context containing the HTTP request.
    */
-  private void register(RoutingContext ctx)
+  private void register(RoutingContext context)
   {
     try
     {
-      var body = ctx.body().asJsonObject();
+      var body = context.body().asJsonObject();
 
       if (body == null)
       {
-        ApiUtils.sendError(ctx, 400, "Missing request body");
+        ApiUtils.sendError(context, 400, "Missing request body");
 
         return;
       }
@@ -330,7 +330,7 @@ public class Auth
 
       if (username == null || username.trim().isEmpty() || password == null || password.length() < 8)
       {
-        ApiUtils.sendError(ctx, 400, "Invalid username or password (minimum 8 characters for password)");
+        ApiUtils.sendError(context, 400, "Invalid username or password (minimum 8 characters for password)");
 
         return;
       }
@@ -343,59 +343,48 @@ public class Auth
         .put(QUERY, QueryConstant.REGISTER_USER)
         .put(PARAMS, new JsonArray().add(username).add(hashedPassword));
 
+      // register the user
       executeQuery(query)
         .onComplete(queryResult ->
         {
           if (queryResult.succeeded())
           {
-            var dbResult = queryResult.result();
+              var result = queryResult.result();
 
-            if (SUCCESS.equals(dbResult.getString(MSG)))
-            {
-              var resultArray = dbResult.getJsonArray(RESULT);
-
-              if (resultArray != null && !resultArray.isEmpty())
+              if (result != null && !result.isEmpty())
               {
-                var userId = resultArray.getJsonObject(0).getLong(ID);
+                var userId = result.getJsonObject(0).getLong(ID);
 
                 LOGGER.info("User registered: {} with ID: {}", username, userId);
 
-                ctx.response()
+                context.response()
                   .setStatusCode(201)
                   .putHeader("Content-Type", "application/json")
                   .end(new JsonObject()
-                    .put(MSG, SUCCESS)
+                    .put(MESSAGE, SUCCESS)
                     .put("user_id", userId)
                     .encodePrettily());
               }
               else
               {
-                ApiUtils.sendError(ctx, 500, "Failed to register user: No ID returned from database.");
+                ApiUtils.sendError(context, 500, "Failed to register user: No ID returned from database.");
               }
-            }
-            else
-            {
-              var error = dbResult.getString(ERROR, "Failed to register user due to a database error.");
-
-              if (error.contains("users_username_key"))
-              {
-                ApiUtils.sendError(ctx, 409, "Username already exists");
-              }
-              else
-              {
-                LOGGER.error("User registration failed for {}. DB Error: {}", username, error);
-
-                ApiUtils.sendError(ctx, 500, error);
-              }
-            }
           }
           else
           {
             var error = queryResult.cause();
 
-            LOGGER.error("User registration query execution failed for username {}: {}", username, error.getMessage(), error);
+            // if username is already taken
+            if(error.getMessage().contains("users_username_key"))
+            {
+              ApiUtils.sendError(context, 409, "Username already exists");
+            }
+            else
+            {
+              LOGGER.error("User registration failed for {}. DB Error: {}", username, error.getMessage());
 
-            ApiUtils.sendError(ctx, 500, "Failed to register user: " + error.getMessage());
+              ApiUtils.sendError(context, 500, "Failed to register user: " + error.getMessage());
+            }
           }
         });
     }
@@ -403,7 +392,7 @@ public class Auth
     {
       LOGGER.error("Unexpected error during registration: {}", e.getMessage(), e);
 
-      ApiUtils.sendError(ctx, 500, "An unexpected error occurred during registration.");
+      ApiUtils.sendError(context, 500, "An unexpected error occurred during registration.");
     }
   }
 
@@ -446,11 +435,12 @@ public class Auth
         {
           if (queryResult.succeeded())
           {
-            var dbResult = queryResult.result();
+            var result = queryResult.result();
 
-            if (SUCCESS.equals(dbResult.getString(MSG)) && dbResult.getJsonArray(RESULT) != null && !dbResult.getJsonArray(RESULT).isEmpty())
+            if (result != null && !result.isEmpty())
             {
-              var user = dbResult.getJsonArray(RESULT).getJsonObject(0);
+              // get the user from the result
+              var user = result.getJsonObject(0);
 
               var storedHash = user.getString(PASSWORD);
 
@@ -474,7 +464,7 @@ public class Auth
                   .setStatusCode(200)
                   .putHeader("Content-Type", "application/json")
                   .end(new JsonObject()
-                    .put(MSG, SUCCESS)
+                    .put(MESSAGE, SUCCESS)
                     .put("token", token)
                     .encodePrettily());
               }

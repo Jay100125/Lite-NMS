@@ -46,7 +46,7 @@ public class Constant {
 
   public static final String BATCHPARAMS = "batchParams";
 
-  public static final String MSG = "msg";
+  public static final String MESSAGE = "message";
 
   public static final String ERROR = "error";
 
@@ -62,6 +62,21 @@ public class Constant {
 
   public static final String SELECTED_IPS = "selected_ips";
 
+  public static final String PROVISIONING_JOB_ID = "provisioning_job_id";
+
+  public static final String METRIC_ID = "metric_id";
+
+  public static final String METRIC_NAME = "metric_name";
+
+  public static final String POLLING_INTERVAL = "polling_interval";
+
+  public static final String ORIGINAL_INTERVAL = "original_interval";
+
+  public static final String REMAINING_TIME = "remaining_time";
+
+  public static final String IP = "ip";
+
+  public static final String IS_ENABLED = "is_enabled";
 
 }
 

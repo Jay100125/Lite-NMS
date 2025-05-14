@@ -20,24 +20,24 @@ import static com.example.NMS.service.QueryProcessor.*;
  */
 public class Discovery
 {
-  private static final Logger LOGGER = LoggerFactory.getLogger(Discovery.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(Discovery.class);
 
-  public void init(Router discoveryRoute)
-  {
-    discoveryRoute.post("/api/discovery").handler(this::create);
+    public void init(Router discoveryRoute)
+    {
+        discoveryRoute.post("/api/discovery").handler(this::create);
 
-    discoveryRoute.get("/api/discovery"+ "/:id").handler(this::getById);
+        discoveryRoute.get("/api/discovery"+ "/:id").handler(this::getById);
 
-    discoveryRoute.get("/api/discovery").handler(this::getAll);
+        discoveryRoute.get("/api/discovery").handler(this::getAll);
 
-    discoveryRoute.delete("/api/discovery" + "/:id").handler(this::delete);
+        discoveryRoute.delete("/api/discovery" + "/:id").handler(this::delete);
 
-    discoveryRoute.put("/api/discovery" + "/:id").handler(this::update);
+        discoveryRoute.put("/api/discovery" + "/:id").handler(this::update);
 
-    discoveryRoute.post("/api/discovery" + "/:id/run").handler(this::run);
+        discoveryRoute.post("/api/discovery" + "/:id/run").handler(this::run);
 
-    discoveryRoute.get("/api/discovery" + "/:id/result").handler(this::getResults);
-  }
+        discoveryRoute.get("/api/discovery" + "/:id/result").handler(this::getResults);
+    }
 
   /**
    * Handles POST requests to create a new discovery profile, associating it with credentials and storing it in PostgreSQL.
@@ -112,14 +112,12 @@ public class Discovery
       executeQuery(query)
         .compose(result ->
         {
-          var resultArray = result.getJsonArray(RESULT);
-
-          if (!SUCCESS.equals(result.getString(MSG)) || resultArray.isEmpty())
+          if(result.isEmpty())
           {
             return Future.failedFuture("Failed to create discovery profile");
           }
 
-          var discoveryId = resultArray.getJsonObject(0).getLong(ID);
+          var discoveryId = result.getJsonObject(0).getLong(ID);
 
           var batchParams = new JsonArray();
 
@@ -140,7 +138,7 @@ public class Discovery
                 .setStatusCode(201)
                 .putHeader("Content-Type", "application/json")
                 .end(new JsonObject()
-                        .put(MSG, SUCCESS)
+                        .put(MESSAGE, SUCCESS)
                         .put(ID, discoveryId)
                         .encodePrettily()))
         .onFailure(err -> ApiUtils.sendError(context, 500, "Failed to create discovery: " + err.getMessage()));
@@ -175,22 +173,36 @@ public class Discovery
         .put(PARAMS, new JsonArray().add(id));
 
       executeQuery(query)
-        .onSuccess(result ->
+        .onComplete(queryResult ->
         {
-          var resultArray = result.getJsonArray(RESULT);
-
-          if (SUCCESS.equals(result.getString(MSG)) && !resultArray.isEmpty())
+          if(queryResult.succeeded())
           {
-            context.response()
-              .setStatusCode(200)
-              .end(result.encodePrettily());
+            var result = queryResult.result();
+
+            if (!result.isEmpty())
+            {
+              context.response()
+                .setStatusCode(200)
+                .putHeader("Content-Type", "application/json")
+                .end(new JsonObject()
+                  .put(MESSAGE, SUCCESS)
+                  .put(RESULT, result)
+                  .encodePrettily());
+            }
+            else
+            {
+              ApiUtils.sendError(context, 404, "Discovery profile not found");
+            }
           }
           else
           {
-            ApiUtils.sendError(context, 404, "Discovery profile not found");
+            var error = queryResult.cause();
+
+            LOGGER.error("Error executing query: {}", error.getMessage());
+
+            ApiUtils.sendError(context, 500, "Database query failed: " + error.getMessage());
           }
-        })
-        .onFailure(err -> ApiUtils.sendError(context, 500, "Database query failed: " + err.getMessage()));
+        });
     }
     catch (Exception e)
     {
@@ -211,21 +223,36 @@ public class Discovery
     var query = new JsonObject().put(QUERY, QueryConstant.GET_ALL_DISCOVERIES);
 
     executeQuery(query)
-      .onSuccess(result ->
+      .onComplete(queryResult ->
       {
-        if (SUCCESS.equals(result.getString(MSG)))
+        if(queryResult.succeeded())
         {
-          context.response()
-                .setStatusCode(200)
-                .putHeader("Content-Type", "application/json")
-                .end(result.encodePrettily());
+          var result = queryResult.result();
+
+          if (!result.isEmpty())
+          {
+            context.response()
+              .setStatusCode(200)
+              .putHeader("Content-Type", "application/json")
+              .end(new JsonObject()
+                .put(MESSAGE, SUCCESS)
+                .put(RESULT, result)
+                .encodePrettily());
+          }
+          else
+          {
+            ApiUtils.sendError(context, 404, "No discovery profiles found");
+          }
         }
         else
         {
-          ApiUtils.sendError(context, 404, "No discovery profiles found");
+          var error = queryResult.cause();
+
+          LOGGER.error("Error executing query: {}", error.getMessage());
+
+          ApiUtils.sendError(context, 500, "Database query failed: " + error.getMessage());
         }
-      })
-      .onFailure(err -> ApiUtils.sendError(context, 500, "Database query failed: " + err.getMessage()));
+      });
   }
 
   /**
@@ -251,23 +278,31 @@ public class Discovery
                   .put(PARAMS, new JsonArray().add(id));
 
       executeQuery(query)
-        .onSuccess(result ->
+        .onComplete(queryResult ->
         {
-          var resultArray = result.getJsonArray(RESULT);
-
-          if (SUCCESS.equals(result.getString(MSG)) && !resultArray.isEmpty())
+          if(queryResult.succeeded())
           {
-            context.response()
-              .setStatusCode(200)
-              .putHeader("Content-Type", "application/json")
-              .end(result.encodePrettily());
+            var result = queryResult.result();
+
+            if (!result.isEmpty())
+            {
+              context.response()
+                .setStatusCode(200)
+                .putHeader("Content-Type", "application/json")
+                .end(result.encodePrettily());
+            }
+            else
+            {
+              ApiUtils.sendError(context, 404, "Discovery profile not found");
+            }
           }
           else
           {
-            ApiUtils.sendError(context, 404, "Discovery profile not found");
+            var error = queryResult.cause();
+
+            ApiUtils.sendError(context, 500, "Database query failed: " + error.getMessage());
           }
-        })
-        .onFailure(err -> ApiUtils.sendError(context, 500, "Database query failed: " + err.getMessage()));
+        });
     }
     catch (Exception e)
     {
@@ -355,8 +390,9 @@ public class Discovery
 
 
       executeQuery(existsQuery)
-        .compose(result -> {
-          if (!SUCCESS.equals(result.getString(MSG)) || result.getJsonArray("result").isEmpty())
+        .compose(result ->
+        {
+          if (result.isEmpty())
           {
             return Future.failedFuture("Discovery profile not found");
           }
@@ -387,24 +423,32 @@ public class Discovery
             .compose(v -> executeQuery(deleteQuery))
             .compose(v -> executeBatchQuery(batchQuery));
         })
-        .onSuccess(v -> context.response()
-          .setStatusCode(200)
-          .putHeader("Content-Type", "application/json")
-          .end(new JsonObject()
-            .put(MSG, SUCCESS)
-            .put(ID, id)
-            .encodePrettily()))
-        .onFailure(error ->
+        .onComplete(queryResult ->
         {
-          LOGGER.error("Error updating discovery profile {}: {}", id, error.getMessage());
-
-          if (error.getMessage().equals("Discovery profile not found"))
+          if(queryResult.succeeded())
           {
-            ApiUtils.sendError(context, 404, "Discovery profile not found");
+            context.response()
+              .setStatusCode(200)
+              .putHeader("Content-Type", "application/json")
+              .end(new JsonObject()
+                .put(MESSAGE, SUCCESS)
+                .put(ID, id)
+                .encodePrettily());
           }
           else
           {
-            ApiUtils.sendError(context, 500, "Failed to update discovery: " + error.getMessage());
+            var error = queryResult.cause();
+
+            LOGGER.error("Error updating discovery profile {}: {}", id, error.getMessage());
+
+            if (error.getMessage().equals("Discovery profile not found"))
+            {
+              ApiUtils.sendError(context, 404, "Discovery profile not found");
+            }
+            else
+            {
+              ApiUtils.sendError(context, 500, "Failed to update discovery: " + error.getMessage());
+            }
           }
         });
     }
@@ -436,13 +480,13 @@ public class Discovery
         .put(QUERY, QueryConstant.GET_DISCOVERY_BY_ID)
         .put(PARAMS, new JsonArray().add(id));
 
-      executeQuery(checkQuery).onComplete(result ->
+      executeQuery(checkQuery).onComplete(queryResult ->
       {
-        if (result.succeeded())
+        if (queryResult.succeeded())
         {
-          var resultArray = result.result().getJsonArray(RESULT);
+          var result = queryResult.result();
 
-          if (resultArray.isEmpty())
+          if (result.isEmpty())
           {
             ApiUtils.sendError(context, 404, "Discovery profile not found");
 
@@ -456,13 +500,15 @@ public class Discovery
             .setStatusCode(202)
             .putHeader("Content-Type", "application/json")
             .end(new JsonObject()
-              .put(MSG, "Discovery is currently being processed")
+              .put(MESSAGE, "Discovery is currently being processed")
               .put(ID, id)
               .encodePrettily());
         }
         else
         {
-          ApiUtils.sendError(context, 500, "Failed to check discovery profile: " + result.cause().getMessage());
+          var error = queryResult.cause();
+
+          ApiUtils.sendError(context, 500, "Failed to check discovery profile: " + error.getMessage());
         }
       });
     }
@@ -489,18 +535,18 @@ public class Discovery
         .put(PARAMS, new JsonArray().add(id));
 
       executeQuery(query)
-        .onSuccess(result -> {
-          if (SUCCESS.equals(result.getString(MSG)))
+        .onComplete(queryResult -> {
+          if(queryResult.succeeded())
           {
-            var resultArray = result.getJsonArray(RESULT);
+            var result = queryResult.result();
 
-            if (resultArray.isEmpty())
+            if (result.isEmpty())
             {
               context.response()
                 .setStatusCode(200)
                 .putHeader("Content-Type", "application/json")
                 .end(new JsonObject()
-                  .put(MSG, "No discovery results found")
+                  .put(MESSAGE, "No discovery results found")
                   .put(RESULT, new JsonArray())
                   .encodePrettily());
             }
@@ -510,19 +556,17 @@ public class Discovery
                 .setStatusCode(200)
                 .putHeader("Content-Type", "application/json")
                 .end(new JsonObject()
-                    .put(MSG, SUCCESS)
-                    .put(RESULT, resultArray)
-                    .encodePrettily());
+                  .put(MESSAGE, SUCCESS)
+                  .put(RESULT, result)
+                  .encodePrettily());
             }
           }
           else
           {
-            ApiUtils.sendError(context, 500, "Failed to retrieve discovery results");
+            var error = queryResult.cause();
+
+            ApiUtils.sendError(context, 500, "Database query failed: " + error.getMessage());
           }
-        })
-        .onFailure(error ->
-        {
-          ApiUtils.sendError(context, 500, "Database query failed: " + error.getMessage());
         });
     }
     catch (Exception exception)

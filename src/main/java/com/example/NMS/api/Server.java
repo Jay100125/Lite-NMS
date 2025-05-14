@@ -2,6 +2,8 @@ package com.example.NMS.api;
 
 import com.example.NMS.api.handlers.Auth;
 import com.example.NMS.api.handlers.Credential;
+//import com.example.NMS.api.handlers.Discovery;
+//import com.example.NMS.api.handlers.Provision;
 import com.example.NMS.api.handlers.Discovery;
 import com.example.NMS.api.handlers.Provision;
 import io.vertx.core.AbstractVerticle;
@@ -69,9 +71,9 @@ public class Server extends AbstractVerticle
     new Auth(jwtAuth).init(authRoute);
 
     new Credential().init(credentialRoute);
-
+//
     new Discovery().init(discoveryRoute);
-
+//
     new Provision().init(provisionRoute);
 
     router.errorHandler(401, ctx -> {
@@ -80,7 +82,7 @@ public class Server extends AbstractVerticle
         .putHeader("Content-Type", "application/json")
         .end(new JsonObject()
           .put(ERROR, "Unauthorized")
-          .put(MSG, "Invalid or missing JWT token")
+          .put(MESSAGE, "Invalid or missing JWT token")
           .encode());
     });
 

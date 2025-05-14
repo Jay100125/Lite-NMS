@@ -80,7 +80,8 @@ public class Database extends AbstractVerticle
         var value = paramArray.getValue(i);
 
         if (value instanceof JsonArray jsonArray)
-        { // Handle array types for SQL (e.g., ANY($2::varchar[]))
+        {
+          // Handle array types for SQL (e.g., ANY($2::varchar[]))
           var s = new String[jsonArray.size()];
 
           for (var j = 0; j < jsonArray.size(); j++)
@@ -97,13 +98,13 @@ public class Database extends AbstractVerticle
 
       LOGGER.debug("Executing query: {} with params: {}", query, params);
 
-      client.preparedQuery(query).execute(params, ar ->
+      client.preparedQuery(query).execute(params, asyncResult ->
       {
-        if (ar.succeeded())
+        if (asyncResult.succeeded())
         {
           var jsonRows = new JsonArray();
 
-          ar.result().forEach(row ->
+          asyncResult.result().forEach(row ->
           {
             var obj = new JsonObject();
 
@@ -136,13 +137,13 @@ public class Database extends AbstractVerticle
 
             LOGGER.debug("Query successful: {}, result size: {}", query, jsonRows.size());
 
-            message.reply(new JsonObject().put("msg", "Success").put("result", jsonRows));
+            message.reply(jsonRows);
           }
           else
           {
-            LOGGER.error("❌ Query failed: {}. Error: {}", query, ar.cause().getMessage(), ar.cause());
+            LOGGER.error("❌ Query failed: {}. Error: {}", query, asyncResult.cause().getMessage());
 
-            message.reply(new JsonObject().put("msg", "fail").put("ERROR", ar.cause().getMessage()));
+            message.fail(500, asyncResult.cause().getMessage());
         }
       });
     });
@@ -197,13 +198,11 @@ public class Database extends AbstractVerticle
             // Process each row in the current RowSet
             for (Row row : rows)
             {
-              var idIndex = row.getColumnIndex("id");
+              var idIndex = row.getColumnIndex(ID);
 
               if (idIndex != -1 && row.getValue(idIndex) != null)
               {
                 var id = row.getLong(idIndex);
-
-//                LOGGER.info("Extracted ID: {} for query: {}", id, query);
 
                 insertedIds.add(id);
               }
@@ -218,7 +217,7 @@ public class Database extends AbstractVerticle
 
           LOGGER.info("Batch query successful: {}, extracted IDs: {}", query, insertedIds.size());
 
-          message.reply(new JsonObject().put("msg", "Success").put("insertedIds", insertedIds));
+          message.reply(insertedIds);
         }
         else
         {

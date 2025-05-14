@@ -10,11 +10,11 @@ public class ApiUtils
 {
   private static final Logger LOGGER = LoggerFactory.getLogger(ApiUtils.class);
 
-  public static void sendError(RoutingContext ctx, int statusCode, String errorMessage)
+  public static void sendError(RoutingContext context, int statusCode, String errorMessage)
   {
     LOGGER.warn(errorMessage);
 
-    ctx.response()
+    context.response()
       .setStatusCode(statusCode)
       .putHeader("Content-Type", "application/json")
       .end(new JsonObject()
@@ -26,16 +26,17 @@ public class ApiUtils
   /**
    * Parses a path parameter as a long ID, sending a 400 error response if invalid.
    *
-   * @param ctx        The routing context containing the path parameters.
+   * @param context        The routing context containing the path parameters.
    * @param paramName  The name of the path parameter (e.g., "id").
    * @return The parsed long ID, or -1 if parsing fails (after sending an error response).
    */
-  public static long parseIdFromPath(RoutingContext ctx, String paramName)
+  public static long parseIdFromPath(RoutingContext context, String paramName)
   {
-    var idStr = ctx.pathParam(paramName);
+    var idStr = context.pathParam(paramName);
+
     if (idStr == null || idStr.trim().isEmpty())
     {
-      sendError(ctx, 400, "Missing or empty ID in path");
+      sendError(context, 400, "Missing or empty ID in path");
 
       return -1;
     }
@@ -44,9 +45,9 @@ public class ApiUtils
     {
       return Long.parseLong(idStr);
     }
-    catch (NumberFormatException e)
+    catch (Exception exception)
     {
-      sendError(ctx, 400, "Invalid ID format: " + idStr);
+      sendError(context, 400, "Invalid ID format: " + idStr);
 
       return -1;
     }

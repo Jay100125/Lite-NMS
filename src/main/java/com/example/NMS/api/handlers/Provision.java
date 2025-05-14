@@ -81,24 +81,40 @@ public class Provision
       }
 
       ProvisionService.createProvisioningJobs(id, selectedIps)
-        .onSuccess(result -> context.response()
-          .setStatusCode(201)
-          .putHeader("Content-Type", "application/json")
-          .end(new JsonObject()
-            .put(MSG, SUCCESS)
-            .put("Provision_created", result.getJsonArray("insertedRecords"))
-            .put("invalid_ips", result.getJsonArray("invalidIps"))
-            .encodePrettily()))
-        .onFailure(err ->
+        .onComplete(queryResult ->
         {
-          var status = err.getMessage().contains("No valid IPs") || err.getMessage().contains("No IPs provided") ? 400 : 500;
+          if(queryResult.succeeded())
+          {
+            var result = queryResult.result();
 
-          ApiUtils.sendError(context, status, "Failed to create provisioning jobs: " + err.getMessage());
+            context.response()
+              .setStatusCode(201)
+              .putHeader("Content-Type", "application/json")
+              .end(new JsonObject()
+                .put(MESSAGE, SUCCESS)
+                .put("Provision_created", result.getJsonArray("insertedRecords"))
+                .put("invalid_ips", result.getJsonArray("invalidIps"))
+                .encodePrettily());
+          }
+          else
+          {
+            var error = queryResult.cause();
+
+            var status = error.getMessage().contains("No valid IPs") || error.getMessage().contains("No IPs provided") ? 400 : 500;
+
+            if(error.getMessage().contains("provisioning_jobs_ip_unique"))
+            {
+              ApiUtils.sendError(context, 400, "IP address already provisioned");
+
+              return;
+            }
+            ApiUtils.sendError(context, status, "Failed to create provisioning jobs: " + error.getMessage());
+          }
         });
     }
-    catch (Exception e)
+    catch (Exception exception)
     {
-      LOGGER.error(e.getMessage());
+      LOGGER.error(exception.getMessage());
     }
   }
 
@@ -111,24 +127,37 @@ public class Provision
         .put(QUERY, GET_ALL_PROVISIONING_JOBS);
 
       executeQuery(query)
-        .onSuccess(result ->
+        .onComplete(queryResult ->
         {
-          if (SUCCESS.equals(result.getString(MSG)))
+          if(queryResult.succeeded())
           {
+            var result = queryResult.result();
+
+            if (result.isEmpty())
+            {
+              ApiUtils.sendError(context, 404, "No provisioning jobs found");
+
+              return;
+            }
             context.response()
               .setStatusCode(200)
-              .end(result.encodePrettily());
+              .putHeader("Content-Type", "application/json")
+              .end(new JsonObject()
+                .put(MESSAGE, SUCCESS)
+                .put(RESULT, result)
+                .encodePrettily());
           }
           else
           {
-            ApiUtils.sendError(context, 404, "No provisioning jobs found");
+            var error = queryResult.cause();
+
+            ApiUtils.sendError(context, 500, "Database query failed: " + error.getMessage());
           }
-        })
-        .onFailure(err -> ApiUtils.sendError(context, 500, "Database query failed: " + err.getMessage()));
+        });
     }
-    catch (Exception e)
+    catch (Exception exception)
     {
-      LOGGER.error("Error getting all provisions: {}", e.getMessage());
+      LOGGER.error("Error getting all provisions: {}", exception.getMessage());
 
       ApiUtils.sendError(context, 500, "Internal server error");
     }
@@ -150,24 +179,32 @@ public class Provision
         .put(PARAMS, new JsonArray().add(id));
 
       executeQuery(query)
-        .onSuccess(result ->
+        .onComplete(queryResult ->
         {
-          var resultArray = result.getJsonArray(RESULT);
-
-          if (SUCCESS.equals(result.getString(MSG)) && !resultArray.isEmpty())
+          if(queryResult.succeeded())
           {
-            MetricCache.removeMetricJobsByProvisioningJobId(id);
+            var result = queryResult.result();
 
-            context.response()
-              .setStatusCode(200)
-              .end(result.encodePrettily());
+            if (!result.isEmpty())
+            {
+              MetricCache.removeMetricJobsByProvisioningJobId(id);
+
+              context.response()
+                .setStatusCode(200)
+                .end(result.encodePrettily());
+            }
+            else
+            {
+              ApiUtils.sendError(context, 404, "Provisioning job not found");
+            }
           }
           else
           {
-            ApiUtils.sendError(context, 404, "Provisioning job not found");
+            var error = queryResult.cause();
+
+            ApiUtils.sendError(context, 500, "Database query failed: " + error.getMessage());
           }
-        })
-        .onFailure(err -> ApiUtils.sendError(context, 500, "Database query failed: " + err.getMessage()));
+        });
     }
     catch (Exception e)
     {
@@ -193,6 +230,7 @@ public class Provision
       if (body == null || !body.containsKey("metrics"))
       {
         ApiUtils.sendError(context, 400, "Missing metrics configuration");
+
         return;
       }
 
@@ -210,9 +248,9 @@ public class Provision
       {
         var metric = metrics.getJsonObject(i);
 
-        var name = metric.getString("metric_type");
+        var name = metric.getString(METRIC_NAME);
 
-        var isEnabled = metric.getBoolean("is_enabled");
+        var isEnabled = metric.getBoolean(IS_ENABLED);
 
         if (name == null || isEnabled == null)
         {
@@ -226,11 +264,12 @@ public class Provision
           return;
         }
 
-        Integer interval = metric.getInteger("polling_interval");
+        Integer interval = metric.getInteger(POLLING_INTERVAL);
 
         if (isEnabled && (interval == null || interval <= 0))
         {
           ApiUtils.sendError(context, 400, "Invalid metric configuration: interval must be provided and positive when is_enabled is true");
+
           return;
         }
 
@@ -253,53 +292,51 @@ public class Provision
         .compose(v ->
         {
           // Fetch provisioning job details
-          JsonObject combinedQuery = new JsonObject()
-            .put("query", "SELECT pj.ip, pj.port, pj.credential_profile_id, cp.cred_data AS cred_data " +
+          var combinedQuery = new JsonObject()
+            .put(QUERY, "SELECT pj.ip, pj.port, pj.credential_profile_id, cp.cred_data AS cred_data " +
               "FROM provisioning_jobs pj " +
               "LEFT JOIN credential_profile cp ON pj.credential_profile_id = cp.id " +
               "WHERE pj.id = $1")
             .put(PARAMS, new JsonArray().add(id));
 
           return executeQuery(combinedQuery)
-            .compose(jobResult ->
+            .compose(result ->
             {
-              if (!SUCCESS.equals(jobResult.getString("msg")) || jobResult.getJsonArray(RESULT).isEmpty())
+              if (result.isEmpty())
               {
                 return Future.failedFuture("Provisioning job not found");
               }
 
-              var job = jobResult.getJsonArray(RESULT).getJsonObject(0);
+              var job = result.getJsonObject(0);
 
-              var ip = job.getString("ip");
+              var ip = job.getString(IP);
 
               var port = job.getInteger(PORT);
 
               var credData = job.getJsonObject(CRED_DATA, new JsonObject());
 
               // Fetch updated metrics
-              JsonObject fetchMetricsQuery = new JsonObject()
-                .put("query", "SELECT metric_id, name, polling_interval, is_enabled FROM metrics WHERE provisioning_job_id = $1 AND name = ANY($2::metric_name[])")
-                .put("params", new JsonArray().add(id).add(new JsonArray(metrics.stream()
-                  .map(m -> ((JsonObject) m).getString("metric_type"))
+              var fetchMetricsQuery = new JsonObject()
+                .put(QUERY, "SELECT metric_id, name, polling_interval, is_enabled FROM metrics WHERE provisioning_job_id = $1 AND name = ANY($2::metric_name[])")
+                .put(PARAMS, new JsonArray().add(id).add(new JsonArray(metrics.stream()
+                  .map(m -> ((JsonObject) m).getString(METRIC_NAME))
                   .toList())));
 
               return executeQuery(fetchMetricsQuery)
                 .compose(metricsResult ->
                 {
-                  var updatedMetrics = metricsResult.getJsonArray(RESULT);
-
                   // Update cache only for provided metrics
-                  for (var i = 0; i < updatedMetrics.size(); i++)
+                  for (var i = 0; i < metricsResult.size(); i++)
                   {
-                    var metric = updatedMetrics.getJsonObject(i);
+                    var metric = metricsResult.getJsonObject(i);
 
-                    var metricId = metric.getLong("metric_id");
+                    var metricId = metric.getLong(METRIC_ID);
 
                     var metricName = metric.getString("name");
 
-                    var pollingInterval = metric.getInteger("polling_interval");
+                    var pollingInterval = metric.getInteger(POLLING_INTERVAL);
 
-                    var isEnabled = metric.getBoolean("is_enabled");
+                    var isEnabled = metric.getBoolean(IS_ENABLED);
 
                     MetricCache.updateMetricJob(
                       metricId,
@@ -317,18 +354,29 @@ public class Provision
                 });
             });
         })
-        .onSuccess(v -> context.response()
-          .setStatusCode(200)
-          .putHeader("Content-Type", "application/json")
-          .end(new JsonObject()
-            .put(MSG, SUCCESS)
-            .put("provisioning_job_id", id)
-            .encodePrettily()))
-        .onFailure(err -> ApiUtils.sendError(context, err.getMessage().contains("not found") ? 404 : 500, "Failed to update metrics: " + err.getMessage()));
+        .onComplete(result -> {
+          if(result.succeeded())
+          {
+            context.response()
+              .setStatusCode(200)
+              .putHeader("Content-Type", "application/json")
+              .end(new JsonObject()
+                .put(MESSAGE, SUCCESS)
+                .put(PROVISIONING_JOB_ID, id)
+                .encodePrettily());
+          }
+          else
+          {
+            var error = result.cause();
+
+            ApiUtils.sendError(context, error.getMessage().contains("not found") ? 404 : 500, "Failed to update metrics: " + error.getMessage());
+          }
+        });
     }
     catch (Exception exception)
     {
       LOGGER.error("Error updating metrics: {}", exception.getMessage());
+
       ApiUtils.sendError(context, 500, "Internal server error");
     }
 
@@ -342,24 +390,27 @@ public class Provision
         .put(QUERY, QueryConstant.GET_ALL_POLLED_DATA);
 
       executeQuery(query)
-        .onSuccess(result ->
+        .onComplete(queryResult ->
         {
-          if (SUCCESS.equals(result.getString(MSG)))
+          if(queryResult.succeeded())
           {
+            var result = queryResult.result();
+
             context.response()
               .setStatusCode(200)
               .putHeader("Content-Type", "application/json")
               .end(new JsonObject()
-                .put(MSG, SUCCESS)
-                .put(RESULT, result.getJsonArray(RESULT))
+                .put(MESSAGE, SUCCESS)
+                .put(RESULT, result)
                 .encodePrettily());
           }
           else
           {
-            ApiUtils.sendError(context, 404, "No polled data found");
+            var error = queryResult.cause();
+
+            ApiUtils.sendError(context, 500, "Database query failed: " + error.getMessage());
           }
-        })
-        .onFailure(err -> ApiUtils.sendError(context, 500, "Database query failed: " + err.getMessage()));
+        });
     }
     catch (Exception e)
     {

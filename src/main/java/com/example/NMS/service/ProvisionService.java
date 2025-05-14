@@ -9,9 +9,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
-import java.util.Map;
 
-import static com.example.NMS.constant.Constant.SUCCESS;
+import static com.example.NMS.constant.Constant.*;
+import static com.example.NMS.constant.QueryConstant.GET_CREDENTIAL_DATA;
 import static com.example.NMS.service.QueryProcessor.*;
 
 public class ProvisionService
@@ -33,7 +33,7 @@ public class ProvisionService
     }
 
     var validateQuery = new JsonObject()
-      .put("query", "SELECT ip, result, credential_profile_id, port " +
+      .put(QUERY, "SELECT ip, result, credential_profile_id, port " +
         "FROM discovery_result WHERE discovery_id = $1 AND ip = ANY($2::varchar[])")
       .put("params", new JsonArray().add(discoveryId).add(selectedIps));
 
@@ -42,18 +42,11 @@ public class ProvisionService
     return executeQuery(validateQuery)
       .compose(result ->
       {
-        if (!SUCCESS.equals(result.getString("msg")))
+        var discoveryResults = new HashMap<String, JsonObject>();
+
+        for (var i = 0; i < result.size(); i++)
         {
-          return Future.failedFuture("Failed to validate IPs");
-        }
-
-        var resultArray = result.getJsonArray("result");
-
-        Map<String, JsonObject> discoveryResults = new HashMap<>();
-
-        for (var i = 0; i < resultArray.size(); i++)
-        {
-          var row = resultArray.getJsonObject(i);
+          var row = result.getJsonObject(i);
 
           discoveryResults.put(row.getString("ip"), row);
         }
@@ -98,34 +91,30 @@ public class ProvisionService
         }
 
         var batchQuery = new JsonObject()
-          .put("query", QueryConstant.INSERT_PROVISIONING_JOB)
-          .put("batchParams", batchParams);
+          .put(QUERY, QueryConstant.INSERT_PROVISIONING_JOB)
+          .put(BATCHPARAMS, batchParams);
 
         return executeBatchQuery(batchQuery)
           .compose(insertResult ->
           {
-            if (!SUCCESS.equals(insertResult.getString("msg")))
-            {
-              var error = insertResult.getString("ERROR", "Batch insert failed");
+//            if (!SUCCESS.equals(insertResult.getString("msg")))
+//            {
+//              var error = insertResult.getString("ERROR", "Batch insert failed");
+//
+//              if (error.contains("provisioning_jobs_ip_unique"))
+//              {
+//                for (int i = 0; i < validIps.size(); i++)
+//                {
+//                  var ip = validIps.getString(i);
+//
+//                  invalidIps.add(new JsonObject().put("ip", ip).put("error", "IP already provisioned"));
+//                }
+//                return Future.failedFuture("No valid IPs for provisioning: " + invalidIps.encodePrettily());
+//              }
+//              return Future.failedFuture(error);
+//            }
 
-              if (error.contains("provisioning_jobs_ip_unique"))
-              {
-                for (int i = 0; i < validIps.size(); i++)
-                {
-                  var ip = validIps.getString(i);
-
-                  invalidIps.add(new JsonObject().put("ip", ip).put("error", "IP already provisioned"));
-                }
-                return Future.failedFuture("No valid IPs for provisioning: " + invalidIps.encodePrettily());
-              }
-              return Future.failedFuture(error);
-            }
-
-            LOGGER.info("_________________________________________");
             LOGGER.info(insertResult.encodePrettily());
-            var insertedIds = insertResult.getJsonArray("insertedIds");
-
-            LOGGER.info(insertedIds.encodePrettily());
 
             var metricsBatch = new JsonArray();
 
@@ -133,9 +122,9 @@ public class ProvisionService
 
             var defaultInterval = 300;
 
-            for (var i = 0; i < insertedIds.size(); i++)
+            for (var i = 0; i < insertResult.size(); i++)
             {
-              var provisioningJobId = insertedIds.getLong(i);
+              var provisioningJobId = insertResult.getLong(i);
 
               for (var metric : allMetrics)
               {
@@ -148,17 +137,17 @@ public class ProvisionService
             }
 
             var metricsQuery = new JsonObject()
-              .put("query", QueryConstant.INSERT_DEFAULT_METRICS)
-              .put("batchParams", metricsBatch);
+              .put(QUERY, QueryConstant.INSERT_DEFAULT_METRICS)
+              .put(BATCHPARAMS, metricsBatch);
 
             return executeBatchQuery(metricsQuery)
-              .compose(v ->
+              .compose(queryResult ->
               {
                 var insertedRecords = new JsonArray();
 
-                if (SUCCESS.equals(v.getString("msg")))
+                if (!queryResult.isEmpty())
                 {
-                  var metricId = v.getJsonArray("insertedIds").getLong(0);
+                  var metricId = queryResult.getLong(0);
 
                   for (var j = 0; j < validIps.size(); j++)
                   {
@@ -166,9 +155,9 @@ public class ProvisionService
 
                     var discoveryResult = discoveryResults.get(ip);
 
-                    var provisioningJobId = insertedIds.getLong(j);
+                    var provisioningJobId = insertResult.getLong(j);
 
-                    var credData = fetchCredData(discoveryResult.getLong("credential_profile_id"));
+                    var credData = fetchCredData(discoveryResult.getLong(CREDENTIAL_PROFILE_ID));
 
                     for (var metric : allMetrics)
                     {
@@ -178,15 +167,15 @@ public class ProvisionService
                         metric,
                         defaultInterval,
                         ip,
-                        discoveryResult.getInteger("port"),
+                        discoveryResult.getInteger(PORT),
                         credData);
 
                       insertedRecords.add(new JsonObject()
                         .put("ip", ip)
                         .put("status", "created")
-                        .put("provisioning_job_id", provisioningJobId)
-                        .put("metric_id", metricId - 1)
-                        .put("metric_name", metric));
+                        .put(PROVISIONING_JOB_ID, provisioningJobId)
+                        .put(METRIC_ID, metricId - 1)
+                        .put(METRIC_NAME, metric));
                     }
                   }
                 }
@@ -203,15 +192,15 @@ public class ProvisionService
   private static JsonObject fetchCredData(long credentialProfileId)
   {
     var query = new JsonObject()
-      .put("query", "SELECT cred_data FROM credential_profile WHERE id = $1")
-      .put("params", new JsonArray().add(credentialProfileId));
+      .put(QUERY, GET_CREDENTIAL_DATA)
+      .put(PARAMS, new JsonArray().add(credentialProfileId));
 
     return executeQuery(query)
       .map(result ->
       {
-        if (result != null && SUCCESS.equals(result.getString("msg")) && !result.getJsonArray("result").isEmpty())
+        if (!result.isEmpty())
         {
-          return result.getJsonArray("result").getJsonObject(0).getJsonObject("cred_data");
+          return result.getJsonObject(0).getJsonObject(CRED_DATA);
         }
         return new JsonObject();
       })

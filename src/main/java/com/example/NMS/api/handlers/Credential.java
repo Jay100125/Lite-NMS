@@ -19,20 +19,20 @@ import static com.example.NMS.constant.QueryConstant.*;
  */
 public class Credential
 {
-  private static final Logger LOGGER = LoggerFactory.getLogger(Credential.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(Credential.class);
 
-  public void init(Router credentialRouter)
-  {
-    credentialRouter.post("/api/credential").handler(this::create);
+    public void init(Router credentialRouter)
+    {
+      credentialRouter.post("/api/credential").handler(this::create);
 
-    credentialRouter.patch("/api/credential/:id").handler(this::update);
+      credentialRouter.patch("/api/credential/:id").handler(this::update);
 
-    credentialRouter.get("/api/credential").handler(this::getAll);
+      credentialRouter.get("/api/credential").handler(this::getAll);
 
-    credentialRouter.get("/api/credential/:id").handler(this::getById);
+      credentialRouter.get("/api/credential/:id").handler(this::getById);
 
-    credentialRouter.delete("/api/credential/:id").handler(this::delete);
-  }
+      credentialRouter.delete("/api/credential/:id").handler(this::delete);
+    }
 
   /**
    * Handles the POST request to create a new credential.
@@ -78,30 +78,34 @@ public class Credential
           {
             var result = queryResult.result();
 
-            var resultArray = result.getJsonArray(RESULT);
+            if (result.isEmpty())
+            {
+              ApiUtils.sendError(context, 409, "Cannot create credential");
+            }
 
-            if (SUCCESS.equals(result.getString(MSG)) && !resultArray.isEmpty())
-            {
-              context.response()
-                .setStatusCode(201)
-                .putHeader("Content-Type", "application/json")
-                .end(new JsonObject()
-                  .put(MSG, SUCCESS)
-                  .put(ID, resultArray.getJsonObject(0).getLong(ID))
-                  .encodePrettily());
-            }
-            else
-            {
-              ApiUtils.sendError(context, 409, result.getString(ERROR));
-            }
+            context.response()
+              .setStatusCode(201)
+              .putHeader("Content-Type", "application/json")
+              .end(new JsonObject()
+                .put(MESSAGE, SUCCESS)
+                .put(ID, result.getJsonObject(0).getLong(ID))
+                .encodePrettily());
+
           }
           else
           {
             var error = queryResult.cause();
 
-            LOGGER.error("Failed to create credential: {}", error.getMessage(), error);
+            if(error.getMessage().contains("unique_credential_name"))
+            {
+              ApiUtils.sendError(context, 409, "Credential name already exists");
+            }
+            else
+            {
+              LOGGER.error("Failed to create credential: {}", error.getMessage());
 
-            ApiUtils.sendError(context, 500, "Database error: " + error.getMessage());
+              ApiUtils.sendError(context, 500, "Database error: " + error.getMessage());
+            }
           }
         });
     }
@@ -158,7 +162,7 @@ public class Credential
       QueryProcessor.executeQuery(existsQuery)
         .compose(result ->
         {
-          if (!SUCCESS.equals(result.getString(MSG)) || result.getJsonArray(RESULT).isEmpty())
+          if (result.isEmpty())
           {
             return Future.failedFuture("Credential not found");
           }
@@ -182,14 +186,12 @@ public class Credential
           {
             var result = queryResult.result();
 
-            var resultArray = result.getJsonArray(RESULT);
-
-            if (SUCCESS.equals(result.getString(MSG)) && !resultArray.isEmpty())
+            if (!result.isEmpty())
             {
               context.response().setStatusCode(200)
                 .putHeader("Content-Type", "application/json")
-                .end(new JsonObject().put(MSG, SUCCESS)
-                  .put(ID, resultArray.getJsonObject(0).getLong(ID))
+                .end(new JsonObject().put(MESSAGE, SUCCESS)
+                  .put(ID, result.getJsonObject(0).getLong(ID))
                   .encodePrettily());
             }
             else
@@ -201,7 +203,7 @@ public class Credential
           {
             var error = queryResult.cause();
 
-            LOGGER.error("Failed to update credential: {}", error.getMessage(), error);
+            LOGGER.error("Failed to update credential: {}", error.getMessage());
 
             var statusCode = error.getMessage().equals("Credential not found") ? 404 : 500;
 
@@ -213,7 +215,7 @@ public class Credential
     }
     catch (Exception exception)
     {
-      LOGGER.error("Unexpected error while updating credential: {}", exception.getMessage(), exception);
+      LOGGER.error("Unexpected error while updating credential: {}", exception.getMessage());
 
       ApiUtils.sendError(context, 500, "Internal server error");
     }
@@ -238,12 +240,14 @@ public class Credential
         {
           var result = queryResult.result();
 
-          if (SUCCESS.equals(result.getString(MSG)))
+          if (!result.isEmpty())
           {
-            context.response()
-              .setStatusCode(200)
+            context.response().setStatusCode(200)
               .putHeader("Content-Type", "application/json")
-              .end(result.encodePrettily());
+              .end(new JsonObject()
+                    .put(MESSAGE, SUCCESS)
+                    .put(RESULT, result)
+                    .encodePrettily());
           }
           else
           {
@@ -254,7 +258,7 @@ public class Credential
         {
           var error = queryResult.cause();
 
-          LOGGER.error("Failed to fetch credentials: {}", error.getMessage(), error);
+          LOGGER.error("Failed to fetch credentials: {}", error.getMessage());
 
           ApiUtils.sendError(context, 500, "Database error: " + error.getMessage());
         }
@@ -277,6 +281,7 @@ public class Credential
         return;
       }
 
+      // get credential by id
       var getQuery = new JsonObject()
         .put(QUERY, GET_CREDENTIAL_BY_ID)
         .put(PARAMS, new JsonArray().add(id));
@@ -288,14 +293,14 @@ public class Credential
           {
             var result = queryResult.result();
 
-            var resultArray = result.getJsonArray(RESULT);
-
-            if (SUCCESS.equals(result.getString(MSG)) && !resultArray.isEmpty())
+            if (!result.isEmpty())
             {
-              context.response()
-                .setStatusCode(200)
+              context.response().setStatusCode(200)
                 .putHeader("Content-Type", "application/json")
-                .end(result.encodePrettily());
+                .end(new JsonObject()
+                  .put(MESSAGE, SUCCESS)
+                  .put(RESULT, result)
+                  .encodePrettily());
             }
             else
             {
@@ -306,7 +311,7 @@ public class Credential
           {
             var error = queryResult.cause();
 
-            LOGGER.error("Failed to fetch credential {}: {}", id, error.getMessage(), error);
+            LOGGER.error("Failed to fetch credential {}: {}", id, error.getMessage());
 
             ApiUtils.sendError(context, 500, "Database error: " + error.getMessage());
           }
@@ -314,7 +319,7 @@ public class Credential
     }
     catch (Exception exception)
     {
-      LOGGER.error("Unexpected error while fetching credential: {}", exception.getMessage(), exception);
+      LOGGER.error("Unexpected error while fetching credential: {}", exception.getMessage());
 
       ApiUtils.sendError(context, 500, "Unexpected error: " + exception.getMessage());
     }
@@ -337,6 +342,7 @@ public class Credential
         return;
       }
 
+      // delete credential by id
       var deleteQuery = new JsonObject()
         .put(QUERY, DELETE_CREDENTIAL)
         .put(PARAMS, new JsonArray().add(id));
@@ -348,16 +354,14 @@ public class Credential
           {
             var result = queryResult.result();
 
-            var resultArray = result.getJsonArray(RESULT);
-
-            if (SUCCESS.equals(result.getString(MSG)) && !resultArray.isEmpty())
+            if (!result.isEmpty())
             {
               context.response()
                 .setStatusCode(200)
                 .putHeader("Content-Type", "application/json")
                 .end(new JsonObject()
-                  .put(MSG, SUCCESS)
-                  .put(ID, resultArray.getJsonObject(0).getLong(ID))
+                  .put(MESSAGE, SUCCESS)
+                  .put(ID, result.getJsonObject(0).getLong(ID))
                   .encodePrettily());
             }
             else
@@ -369,7 +373,7 @@ public class Credential
           {
             var error = queryResult.cause();
 
-            LOGGER.error("Failed to delete credential {}: {}", id, error.getMessage(), error);
+            LOGGER.error("Failed to delete credential {}: {}", id, error.getMessage());
 
             ApiUtils.sendError(context, 500, "Database error: " + error.getMessage());
           }
@@ -377,7 +381,7 @@ public class Credential
     }
     catch (Exception exception)
     {
-      LOGGER.error("Unexpected error while deleting credential: {}", exception.getMessage(), exception);
+      LOGGER.error("Unexpected error while deleting credential: {}", exception.getMessage());
 
       ApiUtils.sendError(context, 500, "Unexpected error: " + exception.getMessage());
     }

@@ -6,6 +6,8 @@ public class QueryConstant
 
   public static final String GET_CREDENTIAL_BY_ID = "SELECT * FROM credential_profile WHERE id = $1";
 
+  public static final String GET_CREDENTIAL_DATA = "SELECT cred_data FROM credential_profile WHERE id = $1";
+
   public static final String INSERT_CREDENTIAL = "INSERT INTO credential_profile (credential_name, system_type, cred_data) VALUES ($1, $2, $3) returning id";
 
     public static final String UPDATE_CREDENTIAL = "UPDATE credential_profile\n" +
@@ -60,13 +62,6 @@ public class QueryConstant
     "INSERT INTO metrics (provisioning_job_id, name, polling_interval, is_enabled) " +
       "VALUES ($1, $2, $3, $4) RETURNING metric_id as id";
 
-//  public static final String DELETE_STALE_METRICS =
-//    "DELETE FROM metrics " +
-//      "WHERE provisioning_job_id = $1 " +
-//      "AND name NOT IN (SELECT UNNEST($2::varchar[])::metric_name) returning provisioning_job_id as id";
-public static final String DISABLE_STALE_METRICS =
-  "UPDATE metrics SET is_enabled = false WHERE provisioning_job_id = $1 AND name <> ALL($2::metric_name[])";
-
   public static final String UPSERT_METRICS =
     "INSERT INTO metrics (provisioning_job_id, name, polling_interval, is_enabled) " +
       "VALUES ($1, $2, COALESCE($3, 300), $4) " +
@@ -96,17 +91,6 @@ public static final String DISABLE_STALE_METRICS =
   public static final String REGISTER_USER = "INSERT INTO users (username, password) VALUES ($1, $2) RETURNING id";
 
   public static final String GET_USER_BY_USERNAME = "SELECT id, username, password FROM users WHERE username = $1";
-
-  public static final String VALIDATE_DISCOVERY_FROM_RESULT = "SELECT ip, result, credential_profile_id, port" +
-    "FROM discovery_result WHERE discovery_id = $1 AND ip = ANY($2::varchar[])";
-
-  public static final String GET_METRICS_BY_PROVISIONING_JOB = "SELECT * FROM metrics WHERE provisioning_job_id = $1";
-
-  public static final String INSERT_POLLING_RESULT = "INSERT INTO polling_results (provisioning_job_id, name, value) " +
-    "VALUES ($1, $2, $3) RETURNING id";
-
-  public static final String VALIDATE_PROVISIONING_JOB =
-    "SELECT id FROM provisioning_jobs WHERE id = $1";
 
   public static final String GET_BY_RUN_ID =
     """
