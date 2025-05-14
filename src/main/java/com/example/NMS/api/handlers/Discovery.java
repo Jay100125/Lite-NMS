@@ -112,7 +112,7 @@ public class Discovery
       executeQuery(query)
         .compose(result ->
         {
-          var resultArray = result.getJsonArray("result");
+          var resultArray = result.getJsonArray(RESULT);
 
           if (!SUCCESS.equals(result.getString(MSG)) || resultArray.isEmpty())
           {
@@ -177,7 +177,7 @@ public class Discovery
       executeQuery(query)
         .onSuccess(result ->
         {
-          var resultArray = result.getJsonArray("result");
+          var resultArray = result.getJsonArray(RESULT);
 
           if (SUCCESS.equals(result.getString(MSG)) && !resultArray.isEmpty())
           {
@@ -238,18 +238,10 @@ public class Discovery
     try
     {
       // Parse and validate discovery ID from path.
-      var idStr = context.pathParam(ID);
+      var id = ApiUtils.parseIdFromPath(context, ID);
 
-      long id;
-
-      try
+      if (id == -1)
       {
-        id = Long.parseLong(idStr);
-      }
-      catch (Exception e)
-      {
-        ApiUtils.sendError(context, 400, "invalid ID");
-
         return;
       }
 
@@ -261,7 +253,7 @@ public class Discovery
       executeQuery(query)
         .onSuccess(result ->
         {
-          var resultArray = result.getJsonArray("result");
+          var resultArray = result.getJsonArray(RESULT);
 
           if (SUCCESS.equals(result.getString(MSG)) && !resultArray.isEmpty())
           {
@@ -295,18 +287,10 @@ public class Discovery
   {
     try
     {
-      var idStr = context.pathParam(ID);
+      var id = ApiUtils.parseIdFromPath(context, ID);
 
-      long id;
-
-      try
+      if (id == -1)
       {
-        id = Long.parseLong(idStr);
-      }
-      catch (Exception e)
-      {
-        ApiUtils.sendError(context, 400, "Invalid ID");
-
         return;
       }
 
@@ -410,23 +394,23 @@ public class Discovery
             .put(MSG, SUCCESS)
             .put(ID, id)
             .encodePrettily()))
-        .onFailure(err ->
+        .onFailure(error ->
         {
-          LOGGER.error("Error updating discovery profile {}: {}", id, err.getMessage());
+          LOGGER.error("Error updating discovery profile {}: {}", id, error.getMessage());
 
-          if (err.getMessage().equals("Discovery profile not found"))
+          if (error.getMessage().equals("Discovery profile not found"))
           {
             ApiUtils.sendError(context, 404, "Discovery profile not found");
           }
           else
           {
-            ApiUtils.sendError(context, 500, "Failed to update discovery: " + err.getMessage());
+            ApiUtils.sendError(context, 500, "Failed to update discovery: " + error.getMessage());
           }
         });
     }
-    catch (Exception e)
+    catch (Exception exception)
     {
-      LOGGER.error("Error updating discovery: {}", e.getMessage());
+      LOGGER.error("Error updating discovery: {}", exception.getMessage());
 
       ApiUtils.sendError(context, 500, "Internal server error");
     }
@@ -452,10 +436,11 @@ public class Discovery
         .put(QUERY, QueryConstant.GET_DISCOVERY_BY_ID)
         .put(PARAMS, new JsonArray().add(id));
 
-      executeQuery(checkQuery).onComplete(result -> {
+      executeQuery(checkQuery).onComplete(result ->
+      {
         if (result.succeeded())
         {
-          var resultArray = result.result().getJsonArray("result");
+          var resultArray = result.result().getJsonArray(RESULT);
 
           if (resultArray.isEmpty())
           {
@@ -464,7 +449,7 @@ public class Discovery
             return;
           }
 
-          var request = new JsonObject().put("id", id);
+          var request = new JsonObject().put(ID, id);
           vertx.eventBus().send(DISCOVERY_RUN,request);
 
           context.response()
@@ -472,7 +457,7 @@ public class Discovery
             .putHeader("Content-Type", "application/json")
             .end(new JsonObject()
               .put(MSG, "Discovery is currently being processed")
-              .put("id", id)
+              .put(ID, id)
               .encodePrettily());
         }
         else
@@ -486,68 +471,6 @@ public class Discovery
       LOGGER.error("Failed to process discovery request");
     }
   }
-
-//  private void getResults(RoutingContext context)
-//  {
-//    try
-//    {
-//      var id = ApiUtils.parseIdFromPath(context, ID);
-//
-//      if (id == -1)
-//      {
-//        return;
-//      }
-//
-//      // Query to retrieve discovery results for this ID
-//      var query = new JsonObject()
-//        .put(QUERY, QueryConstant.GET_DISCOVERY_RESULTS)
-//        .put(PARAMS, new JsonArray().add(id));
-//
-//      executeQuery(query)
-//        .onSuccess(result -> {
-//          if (SUCCESS.equals(result.getString(MSG)))
-//          {
-//            var resultArray = result.getJsonArray("result");
-//
-//            if (resultArray.isEmpty())
-//            {
-//              // No results yet
-//              context.response()
-//                .setStatusCode(200)
-//                .putHeader("Content-Type", "application/json")
-//                .end(new JsonObject()
-//                  .put(MSG, "No discovery results found")
-//                  .put("results", new JsonArray())
-//                  .encodePrettily());
-//            }
-//            else
-//            {
-//              // Results found
-//              context.response()
-//                .setStatusCode(200)
-//                .putHeader("Content-Type", "application/json")
-//                .end(new JsonObject()
-//                  .put(MSG, SUCCESS)
-//                  .put("results", resultArray)
-//                  .encodePrettily());
-//            }
-//          }
-//          else
-//          {
-//            ApiUtils.sendError(context, 500, "Failed to retrieve discovery results");
-//          }
-//        })
-//        .onFailure(err -> {
-//          LOGGER.error("Error retrieving discovery results: {}", err.getMessage());
-//          ApiUtils.sendError(context, 500, "Database query failed: " + err.getMessage());
-//        });
-//    }
-//    catch (Exception e)
-//    {
-//      LOGGER.error("Error retrieving discovery results: {}", e.getMessage());
-//      ApiUtils.sendError(context, 500, "Internal server error");
-//    }
-//  }
 
   private void getResults(RoutingContext context)
   {
@@ -569,7 +492,7 @@ public class Discovery
         .onSuccess(result -> {
           if (SUCCESS.equals(result.getString(MSG)))
           {
-            var resultArray = result.getJsonArray("result");
+            var resultArray = result.getJsonArray(RESULT);
 
             if (resultArray.isEmpty())
             {
@@ -578,7 +501,7 @@ public class Discovery
                 .putHeader("Content-Type", "application/json")
                 .end(new JsonObject()
                   .put(MSG, "No discovery results found")
-                  .put("results", new JsonArray())
+                  .put(RESULT, new JsonArray())
                   .encodePrettily());
             }
             else
@@ -588,7 +511,7 @@ public class Discovery
                 .putHeader("Content-Type", "application/json")
                 .end(new JsonObject()
                     .put(MSG, SUCCESS)
-                    .put("results", resultArray)
+                    .put(RESULT, resultArray)
                     .encodePrettily());
             }
           }
@@ -597,13 +520,15 @@ public class Discovery
             ApiUtils.sendError(context, 500, "Failed to retrieve discovery results");
           }
         })
-        .onFailure(err -> {
-          ApiUtils.sendError(context, 500, "Database query failed: " + err.getMessage());
+        .onFailure(error ->
+        {
+          ApiUtils.sendError(context, 500, "Database query failed: " + error.getMessage());
         });
     }
-    catch (Exception e)
+    catch (Exception exception)
     {
-      LOGGER.error("Error retrieving discovery results: {}", e.getMessage());
+      LOGGER.error("Error retrieving discovery results: {}", exception.getMessage());
+
       ApiUtils.sendError(context, 500, "Internal server error");
     }
   }

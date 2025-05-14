@@ -158,7 +158,7 @@ public class Credential
       QueryProcessor.executeQuery(existsQuery)
         .compose(result ->
         {
-          if (!SUCCESS.equals(result.getString(MSG)) || result.getJsonArray("result").isEmpty())
+          if (!SUCCESS.equals(result.getString(MSG)) || result.getJsonArray(RESULT).isEmpty())
           {
             return Future.failedFuture("Credential not found");
           }
@@ -211,9 +211,9 @@ public class Credential
           }
         });
     }
-    catch (Exception e)
+    catch (Exception exception)
     {
-      LOGGER.error("Unexpected error while updating credential: {}", e.getMessage(), e);
+      LOGGER.error("Unexpected error while updating credential: {}", exception.getMessage(), exception);
 
       ApiUtils.sendError(context, 500, "Internal server error");
     }
@@ -375,11 +375,11 @@ public class Credential
           }
         });
     }
-    catch (Exception e)
+    catch (Exception exception)
     {
-      LOGGER.error("Unexpected error while deleting credential: {}", e.getMessage(), e);
+      LOGGER.error("Unexpected error while deleting credential: {}", exception.getMessage(), exception);
 
-      ApiUtils.sendError(context, 500, "Unexpected error: " + e.getMessage());
+      ApiUtils.sendError(context, 500, "Unexpected error: " + exception.getMessage());
     }
   }
 }

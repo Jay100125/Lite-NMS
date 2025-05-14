@@ -12,6 +12,10 @@ public class Constant {
 
   public static final String DB_PASSWORD = "Mind@123";
 
+  public static final int SERVER_PORT = 8080;
+
+  public static final int MAX_WORKER_EXECUTION_TIME = 900;
+
   public static final String JWT_SECRET = "MySecretKey";
 
   public static final String DB_EXECUTE_QUERY = "db.execute.query";

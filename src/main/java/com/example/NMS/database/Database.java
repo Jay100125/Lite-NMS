@@ -37,21 +37,24 @@ public class Database extends AbstractVerticle
 
     // Initialize the database schema
     initializeSchema()
-      .onSuccess(v ->
+      .onComplete(result ->
       {
-        LOGGER.info("Database schema initialization successful.");
-        // set event bus consumers after schema initialization
-        setUpConsumers();
+        if (result.succeeded())
+        {
+          LOGGER.info("Database schema initialization successful.");
+          // Set event bus consumers after schema initialization
+          setUpConsumers();
 
-        startPromise.complete();
+          startPromise.complete();
 
-        LOGGER.info("Database Verticle started and event bus consumers registered.");
-      })
-      .onFailure(err ->
-      {
-        LOGGER.error("Schema initialization failed: {}", err.getMessage(), err);
+          LOGGER.info("Database Verticle started and event bus consumers registered.");
+        }
+        else
+        {
+          LOGGER.error("Schema initialization failed: {}", result.cause().getMessage(), result.cause());
 
-        startPromise.fail(err);
+          startPromise.fail(result.cause());
+        }
       });
   }
 
@@ -200,7 +203,7 @@ public class Database extends AbstractVerticle
               {
                 var id = row.getLong(idIndex);
 
-                LOGGER.info("Extracted ID: {} for query: {}", id, query);
+//                LOGGER.info("Extracted ID: {} for query: {}", id, query);
 
                 insertedIds.add(id);
               }
@@ -213,7 +216,7 @@ public class Database extends AbstractVerticle
             rows = rows.next();
           }
 
-          LOGGER.debug("Batch query successful: {}, extracted IDs: {}", query, insertedIds.size());
+          LOGGER.info("Batch query successful: {}, extracted IDs: {}", query, insertedIds.size());
 
           message.reply(new JsonObject().put("msg", "Success").put("insertedIds", insertedIds));
         }

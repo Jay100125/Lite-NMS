@@ -16,7 +16,7 @@ import io.vertx.ext.web.handler.JWTAuthHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static com.example.NMS.constant.Constant.JWT_SECRET;
+import static com.example.NMS.constant.Constant.*;
 
 
 public class Server extends AbstractVerticle
@@ -79,13 +79,13 @@ public class Server extends AbstractVerticle
         .setStatusCode(401)
         .putHeader("Content-Type", "application/json")
         .end(new JsonObject()
-          .put("error", "Unauthorized")
-          .put("message", "Invalid or missing JWT token")
+          .put(ERROR, "Unauthorized")
+          .put(MSG, "Invalid or missing JWT token")
           .encode());
     });
 
     vertx.createHttpServer().requestHandler(router)
-      .listen(8080)
+      .listen(SERVER_PORT)
       .onComplete(handler ->
       {
         if (handler.succeeded())

@@ -375,7 +375,7 @@ public class Auth
             }
             else
             {
-              var error = dbResult.getString("ERROR", "Failed to register user due to a database error.");
+              var error = dbResult.getString(ERROR, "Failed to register user due to a database error.");
 
               if (error.contains("users_username_key"))
               {
@@ -502,9 +502,9 @@ public class Auth
           }
         });
     }
-    catch (Exception e)
+    catch (Exception exception)
     {
-      LOGGER.error("Unexpected error during login: {}", e.getMessage(), e);
+      LOGGER.error("Unexpected error during login: {}", exception.getMessage(), exception);
 
       ApiUtils.sendError(ctx, 500, "An unexpected error occurred during login.");
     }

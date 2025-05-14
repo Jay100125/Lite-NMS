@@ -5,14 +5,19 @@ import com.example.NMS.database.Database;
 import com.example.NMS.discovery.Discovery;
 import com.example.NMS.polling.Polling;
 import io.vertx.core.Vertx;
+import io.vertx.core.VertxOptions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.concurrent.TimeUnit;
+
+import static com.example.NMS.constant.Constant.MAX_WORKER_EXECUTION_TIME;
 
 public class Main
 {
   private static final Logger LOGGER = LoggerFactory.getLogger(Main.class);
 
-  public static final Vertx vertx = Vertx.vertx();
+  public static final Vertx vertx = Vertx.vertx(new VertxOptions().setMaxWorkerExecuteTime(MAX_WORKER_EXECUTION_TIME).setMaxWorkerExecuteTimeUnit(TimeUnit.SECONDS));
 
   public static void main(String[] args)
   {

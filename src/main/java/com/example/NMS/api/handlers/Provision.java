@@ -42,21 +42,12 @@ public class Provision
     try
     {
       // Get the discovery profile ID from path parameter
-      var discoveryIdStr = context.pathParam(ID);
+      var id = ApiUtils.parseIdFromPath(context, ID);
 
-      long discoveryId;
-
-      try
+      if (id == -1)
       {
-        discoveryId = Long.parseLong(discoveryIdStr);
-      }
-      catch (Exception e)
-      {
-        ApiUtils.sendError(context, 400, "Invalid discovery ID");
-
         return;
       }
-
       // Get the request body
       var body = context.body().asJsonObject();
 
@@ -89,12 +80,12 @@ public class Provision
         }
       }
 
-      ProvisionService.createProvisioningJobs(discoveryId, selectedIps)
+      ProvisionService.createProvisioningJobs(id, selectedIps)
         .onSuccess(result -> context.response()
           .setStatusCode(201)
           .putHeader("Content-Type", "application/json")
           .end(new JsonObject()
-            .put("msg", "Success")
+            .put(MSG, SUCCESS)
             .put("Provision_created", result.getJsonArray("insertedRecords"))
             .put("invalid_ips", result.getJsonArray("invalidIps"))
             .encodePrettily()))
@@ -147,18 +138,10 @@ public class Provision
   {
     try
     {
-      var idStr = context.pathParam("id");
+      var id = ApiUtils.parseIdFromPath(context, ID);
 
-      long id;
-
-      try
+      if (id == -1)
       {
-        id = Long.parseLong(idStr);
-      }
-      catch (NumberFormatException e)
-      {
-        ApiUtils.sendError(context, 400, "Invalid provision job ID");
-
         return;
       }
 
@@ -169,7 +152,7 @@ public class Provision
       executeQuery(query)
         .onSuccess(result ->
         {
-          var resultArray = result.getJsonArray("result");
+          var resultArray = result.getJsonArray(RESULT);
 
           if (SUCCESS.equals(result.getString(MSG)) && !resultArray.isEmpty())
           {
@@ -198,17 +181,10 @@ public class Provision
   {
     try
     {
-      var idStr = context.pathParam("id");
+      var id = ApiUtils.parseIdFromPath(context, ID);
 
-      long provisioningJobId;
-
-      try
+      if (id == -1)
       {
-        provisioningJobId = Long.parseLong(idStr);
-      }
-      catch (Exception e)
-      {
-        ApiUtils.sendError(context, 400, "Invalid provisioning job ID");
         return;
       }
 
@@ -262,7 +238,7 @@ public class Provision
         int effectiveInterval = (interval != null && interval > 0) ? interval : 300;
 
         batchParams.add(new JsonArray()
-          .add(provisioningJobId)
+          .add(id)
           .add(name)
           .add(effectiveInterval)
           .add(isEnabled));
@@ -270,8 +246,8 @@ public class Provision
 
       // Upsert provided metrics
       var upsertQuery = new JsonObject()
-        .put("query", QueryConstant.UPSERT_METRICS)
-        .put("batchParams", batchParams);
+        .put(QUERY, QueryConstant.UPSERT_METRICS)
+        .put(BATCHPARAMS, batchParams);
 
       executeBatchQuery(upsertQuery)
         .compose(v ->
@@ -282,35 +258,35 @@ public class Provision
               "FROM provisioning_jobs pj " +
               "LEFT JOIN credential_profile cp ON pj.credential_profile_id = cp.id " +
               "WHERE pj.id = $1")
-            .put("params", new JsonArray().add(provisioningJobId));
+            .put(PARAMS, new JsonArray().add(id));
 
           return executeQuery(combinedQuery)
             .compose(jobResult ->
             {
-              if (!SUCCESS.equals(jobResult.getString("msg")) || jobResult.getJsonArray("result").isEmpty())
+              if (!SUCCESS.equals(jobResult.getString("msg")) || jobResult.getJsonArray(RESULT).isEmpty())
               {
                 return Future.failedFuture("Provisioning job not found");
               }
 
-              var job = jobResult.getJsonArray("result").getJsonObject(0);
+              var job = jobResult.getJsonArray(RESULT).getJsonObject(0);
 
               var ip = job.getString("ip");
 
-              var port = job.getInteger("port");
+              var port = job.getInteger(PORT);
 
-              var credData = job.getJsonObject("cred_data", new JsonObject());
+              var credData = job.getJsonObject(CRED_DATA, new JsonObject());
 
               // Fetch updated metrics
               JsonObject fetchMetricsQuery = new JsonObject()
                 .put("query", "SELECT metric_id, name, polling_interval, is_enabled FROM metrics WHERE provisioning_job_id = $1 AND name = ANY($2::metric_name[])")
-                .put("params", new JsonArray().add(provisioningJobId).add(new JsonArray(metrics.stream()
+                .put("params", new JsonArray().add(id).add(new JsonArray(metrics.stream()
                   .map(m -> ((JsonObject) m).getString("metric_type"))
                   .toList())));
 
               return executeQuery(fetchMetricsQuery)
                 .compose(metricsResult ->
                 {
-                  var updatedMetrics = metricsResult.getJsonArray("result");
+                  var updatedMetrics = metricsResult.getJsonArray(RESULT);
 
                   // Update cache only for provided metrics
                   for (var i = 0; i < updatedMetrics.size(); i++)
@@ -327,7 +303,7 @@ public class Provision
 
                     MetricCache.updateMetricJob(
                       metricId,
-                      provisioningJobId,
+                      id,
                       metricName,
                       pollingInterval,
                       ip,
@@ -345,14 +321,14 @@ public class Provision
           .setStatusCode(200)
           .putHeader("Content-Type", "application/json")
           .end(new JsonObject()
-            .put("msg", "Success")
-            .put("provisioning_job_id", provisioningJobId)
+            .put(MSG, SUCCESS)
+            .put("provisioning_job_id", id)
             .encodePrettily()))
         .onFailure(err -> ApiUtils.sendError(context, err.getMessage().contains("not found") ? 404 : 500, "Failed to update metrics: " + err.getMessage()));
     }
-    catch (Exception e)
+    catch (Exception exception)
     {
-      LOGGER.error("Error updating metrics: {}", e.getMessage());
+      LOGGER.error("Error updating metrics: {}", exception.getMessage());
       ApiUtils.sendError(context, 500, "Internal server error");
     }
 
@@ -374,8 +350,8 @@ public class Provision
               .setStatusCode(200)
               .putHeader("Content-Type", "application/json")
               .end(new JsonObject()
-                .put("msg", "Success")
-                .put("results", result.getJsonArray("result"))
+                .put(MSG, SUCCESS)
+                .put(RESULT, result.getJsonArray(RESULT))
                 .encodePrettily());
           }
           else
