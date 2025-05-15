@@ -22,7 +22,6 @@ public class MetricCache
   private static final ConcurrentHashMap<Long, JsonObject> metricJobCache = new ConcurrentHashMap<>();
 
   // Timer interval (seconds) for decrementing remaining times
-  private static final int TIMER_INTERVAL_SECONDS = 10;
 
   // Flag to ensure cache is initialized only once
   private static boolean isCacheInitialized = false;

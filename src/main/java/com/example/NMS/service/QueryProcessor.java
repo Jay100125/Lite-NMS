@@ -11,7 +11,7 @@ import static com.example.NMS.constant.Constant.*;
 
 public class QueryProcessor
 {
-  public static final Logger LOGGER = LoggerFactory.getLogger(QueryProcessor.class);
+    public static final Logger LOGGER = LoggerFactory.getLogger(QueryProcessor.class);
 
   /**
    * Execute a single database query and return a Future with the result.
@@ -19,38 +19,38 @@ public class QueryProcessor
    * @param query The query JSON object with "query" and "params" fields
    * @return Future containing the query result
    */
-  public static Future<JsonArray> executeQuery(JsonObject query)
-  {
-    return Future.future(promise ->
+    public static Future<JsonArray> executeQuery(JsonObject query)
     {
-      try
-      {
-        vertx.eventBus().<JsonArray>request(DB_EXECUTE_QUERY, query, queryResult ->
+        return Future.future(promise ->
         {
-          if (queryResult.succeeded())
-          {
-            var result = queryResult.result().body();
+            try
+            {
+                vertx.eventBus().<JsonArray>request(DB_EXECUTE_QUERY, query, queryResult ->
+                {
+                    if (queryResult.succeeded())
+                    {
+                        var result = queryResult.result().body();
 
-            LOGGER.info("Database query executed: {}", query);
+                        LOGGER.info("Database query executed: {}", query);
 
-            promise.complete(result);
-          }
-          else
-          {
-            LOGGER.error("Database query failed: {}", queryResult.cause().getMessage());
+                        promise.complete(result);
+                    }
+                    else
+                    {
+                        LOGGER.error("Database query failed: {}", queryResult.cause().getMessage());
 
-            promise.fail(queryResult.cause());
-          }
+                        promise.fail(queryResult.cause());
+                    }
+                });
+            }
+            catch (Exception exception)
+            {
+                LOGGER.error("Unexpected error executing query: {}", exception.getMessage(), exception);
+
+                promise.fail("Unexpected error executing query: " + exception.getMessage());
+            }
         });
-      }
-      catch (Exception exception)
-      {
-        LOGGER.error("Unexpected error executing query: {}", exception.getMessage(), exception);
-
-        promise.fail("Unexpected error executing query: " + exception.getMessage());
-      }
-    });
-  }
+    }
 
 
   /**
@@ -59,37 +59,37 @@ public class QueryProcessor
    * @param batchQuery The batch query JSON object with "query" and "batchParams" fields
    * @return Future containing the batch query result
    */
-  public static Future<JsonArray> executeBatchQuery(JsonObject batchQuery)
-  {
-    return Future.future(promise ->
+    public static Future<JsonArray> executeBatchQuery(JsonObject batchQuery)
     {
-      try
-      {
-        vertx.eventBus().<JsonArray>request(DB_EXECUTE_BATCH_QUERY, batchQuery, queryResult ->
+        return Future.future(promise ->
         {
-          if (queryResult.succeeded())
-          {
-            var result = queryResult.result().body();
+            try
+            {
+                vertx.eventBus().<JsonArray>request(DB_EXECUTE_BATCH_QUERY, batchQuery, queryResult ->
+                {
+                    if (queryResult.succeeded())
+                    {
+                        var result = queryResult.result().body();
 
-            LOGGER.info("Batch query executed: {}", batchQuery.getString(QUERY));
+                        LOGGER.info("Batch query executed: {}", batchQuery.getString(QUERY));
 
-            promise.complete(result);
-          }
-          else
-          {
-            LOGGER.error("Batch query failed: {}", queryResult.cause().getMessage());
+                        promise.complete(result);
+                    }
+                    else
+                    {
+                        LOGGER.error("Batch query failed: {}", queryResult.cause().getMessage());
 
-            promise.fail(queryResult.cause());
-          }
+                        promise.fail(queryResult.cause());
+                    }
+                });
+            }
+            catch (Exception exception)
+            {
+                LOGGER.error("Unexpected error executing batch query: {}", exception.getMessage());
+
+                promise.fail("Unexpected error executing batch query: " + exception.getMessage());
+            }
         });
-      }
-      catch (Exception exception)
-      {
-        LOGGER.error("Unexpected error executing batch query: {}", exception.getMessage());
-
-        promise.fail("Unexpected error executing batch query: " + exception.getMessage());
-      }
-    });
-  }
+    }
 }
 

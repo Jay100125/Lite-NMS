@@ -26,357 +26,346 @@ public class Utility
       return ip != null && ip.matches(IPv4_PATTERN);
     }
 
-  /// Resolve IP addresses from a given input string.
-  public static List<String> resolveIpAddresses(String ipInput) throws Exception
+    /// Resolve IP addresses from a given input string.
+    public static List<String> resolveIpAddresses(String ipInput) throws Exception
     {
-      var ipList = new ArrayList<String>();
+        var ipList = new ArrayList<String>();
 
-      if (ipInput.contains("-"))
-      {
-        // Handle IP range (e.g., "10.20.40.10 - 10.20.40.123")
-        String[] range = ipInput.split("\\s*-\\s*");
-
-        if (range.length != 2)
+        if (ipInput.contains("-"))
         {
-          throw new Exception("Invalid IP range format");
+            // Handle IP range (e.g., "10.20.40.10 - 10.20.40.123")
+            String[] range = ipInput.split("\\s*-\\s*");
+
+            if (range.length != 2)
+            {
+                throw new Exception("Invalid IP range format");
+            }
+
+            var startIp = range[0].trim();
+
+            var endIp = range[1].trim();
+
+            var start = ipToLong(InetAddress.getByName(startIp));
+
+            var end = ipToLong(InetAddress.getByName(endIp));
+
+            if (start > end)
+            {
+                throw new Exception("Start IP must be less than or equal to end IP");
+            }
+
+            for (var i = start; i <= end; i++)
+            {
+                ipList.add(longToIp(i));
+            }
         }
-
-        var startIp = range[0].trim();
-
-        var endIp = range[1].trim();
-
-        var start = ipToLong(InetAddress.getByName(startIp));
-
-        var end = ipToLong(InetAddress.getByName(endIp));
-
-        if (start > end)
+        else if (ipInput.contains("/"))
         {
-          throw new Exception("Start IP must be less than or equal to end IP");
-        }
+          // Handle CIDR (e.g., "10.20.40.0/16")
+            String[] cidrParts = ipInput.split("/");
 
-        for (var i = start; i <= end; i++)
+            if (cidrParts.length != 2)
+            {
+                throw new IllegalArgumentException("Invalid CIDR format");
+            }
+
+            var baseIp = cidrParts[0].trim();
+
+            int maskBits;
+
+            try
+            {
+                maskBits = Integer.parseInt(cidrParts[1].trim());
+            }
+            catch (Exception e)
+            {
+                throw new IllegalArgumentException("Invalid CIDR mask");
+            }
+
+            var base = ipToLong(InetAddress.getByName(baseIp));
+
+            var mask = (0xffffffffL << (32 - maskBits));
+
+            var start = base & mask;
+
+            var end = start + (1L << (32 - maskBits)) - 1;
+
+            for (var i = start; i <= end; i++)
+            {
+                ipList.add(longToIp(i));
+            }
+        }
+        else
         {
-          ipList.add(longToIp(i));
+          // Handle single IP
+            if (!Utility.isValidIPv4(ipInput))
+            {
+                throw new IllegalArgumentException("Invalid IP address");
+            }
+            ipList.add(ipInput);
         }
-      }
-      else if (ipInput.contains("/"))
-      {
-        // Handle CIDR (e.g., "10.20.40.0/16")
-        String[] cidrParts = ipInput.split("/");
-
-        if (cidrParts.length != 2)
-        {
-          throw new IllegalArgumentException("Invalid CIDR format");
-        }
-
-        var baseIp = cidrParts[0].trim();
-
-        int maskBits;
-        try
-        {
-          maskBits = Integer.parseInt(cidrParts[1].trim());
-        }
-        catch (Exception e)
-        {
-          throw new IllegalArgumentException("Invalid CIDR mask");
-        }
-
-        var base = ipToLong(InetAddress.getByName(baseIp));
-
-        var mask = (0xffffffffL << (32 - maskBits));
-
-        var start = base & mask;
-
-        var end = start + (1L << (32 - maskBits)) - 1;
-
-        for (var i = start; i <= end; i++)
-        {
-          ipList.add(longToIp(i));
-        }
-      }
-      else
-      {
-        // Handle single IP
-        if (!Utility.isValidIPv4(ipInput))
-        {
-          throw new IllegalArgumentException("Invalid IP address");
-        }
-        ipList.add(ipInput);
-      }
-
       return ipList;
-
     }
 
     private static long ipToLong(InetAddress ip)
     {
-      byte[] octets = ip.getAddress();
+        byte[] octets = ip.getAddress();
 
-      var result = 0;
+        var result = 0;
 
-      for (byte octet : octets)
-      {
-        result <<= 8;
+        for (byte octet : octets)
+        {
+            result <<= 8;
 
-        result |= (octet & 0xff);
-      }
-      return result;
+            result |= (octet & 0xff);
+        }
+        return result;
     }
 
     private static String longToIp(long ip)
     {
-      return String.format("%d.%d.%d.%d",
-        (ip >> 24) & 0xff,
-        (ip >> 16) & 0xff,
-        (ip >> 8) & 0xff,
-        ip & 0xff);
+        return String.format("%d.%d.%d.%d",
+          (ip >> 24) & 0xff,
+          (ip >> 16) & 0xff,
+          (ip >> 8) & 0xff,
+          ip & 0xff);
     }
 
     public static JsonArray checkReachability(List<String> ipList, int port) throws Exception
     {
-      var results = new JsonArray();
+        var results = new JsonArray();
 
-      var aliveIps = new HashSet<String>();
+        var aliveIps = new HashSet<String>();
 
-      // Run bulk fping with -a to get alive hosts
-      try
-      {
-        var command = new ArrayList<String>();
-
-        command.add("fping");
-        command.add("-a"); // Show alive hosts
-        command.add("-q"); // Quiet mode
-        command.add("-c"); // Count
-        command.add("1");  // 1 attempt
-        command.add("-t"); // Timeout
-        command.add("1000"); // 1000ms
-        command.addAll(ipList); // Add all IPs
-
-        var pb = new ProcessBuilder(command);
-
-        var process = pb.start();
-
-        LOGGER.info("Ip {} fping command: {}", ipList, String.join(" ", command));
-        // Read alive IPs from stdout
-        var reader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
-
-        String line;
-
-        while ((line = reader.readLine()) != null)
+        // Run bulk fping with -a to get alive hosts
+        try
         {
-          // Example line: "192.168.1.1 : xmt/rcv/%loss = 3/3/0%, min/avg/max = 1.01/1.23/1.45"
-          if (!line.contains("100%"))
-          {
-            aliveIps.add(line.split(":")[0].trim());
-          }
-        }
+            var command = new ArrayList<String>();
 
+            command.add("fping");
+            command.add("-a"); // Show alive hosts
+            command.add("-q"); // Quiet mode
+            command.add("-c"); // Count
+            command.add("1");  // 1 attempt
+            command.add("-t"); // Timeout
+            command.add("1000"); // 1000ms
+            command.addAll(ipList); // Add all IPs
 
-//        for (var ip : aliveIps)
-//        {
-//          logger.info("fping alive IP: {}", ip);
-//
-//        }
-        LOGGER.info("fping alive IPs: {}", aliveIps);
+            var processBuilder = new ProcessBuilder(command);
 
-        LOGGER.info("FPING command: {}", String.join(" ", command));
-        // Log stderr for debugging
+            var process = processBuilder.start();
 
-        var stderrReader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
+            LOGGER.info("Ip {} fping command: {}", ipList, String.join(" ", command));
+            // Read alive IPs from stdout
+            var reader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
 
-        var stderr = new StringBuilder();
+            String line;
 
-        while ((line = stderrReader.readLine()) != null)
-        {
-          stderr.append(line).append("\n");
-        }
+            while ((line = reader.readLine()) != null)
+            {
+              // Example line: "192.168.1.1 : xmt/rcv/%loss = 3/3/0%, min/avg/max = 1.01/1.23/1.45"
+                if (!line.contains("100%"))
+                {
+                    aliveIps.add(line.split(":")[0].trim());
+                }
+            }
 
-        if (!stderr.isEmpty())
-        {
-          LOGGER.debug("fping stderr: {}", stderr);
-        }
+            LOGGER.info("fping alive IPs: {}", aliveIps);
 
-        var exitCode = process.waitFor();
+            LOGGER.info("FPING command: {}", String.join(" ", command));
+            // Log stderr for debugging
 
-        if (exitCode != 0 && aliveIps.isEmpty())
-        {
-          LOGGER.warn("fping exited with code {} and no alive IPs", exitCode);
-        }
-      }
-      catch (Exception e)
-      {
-        LOGGER.error("Error running fping: {}", e.getMessage());
+            var stderrReader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
 
-//        throw e; // Let caller handle
-      }
+            var stderr = new StringBuilder();
 
-      // Check port for each IP
-      for (var ip : ipList)
-      {
-        var isReachable = aliveIps.contains(ip);
+            while ((line = stderrReader.readLine()) != null)
+            {
+                stderr.append(line).append("\n");
+            }
 
-        var isPortOpen = false;
-
-        if (isReachable)
-        {
-          try
-          {
-            // Use nc to check port
-            var pb = new ProcessBuilder("nc", "-z", "-w", "1", ip, String.valueOf(port));
-
-            var process = pb.start();
+            if (!stderr.isEmpty())
+            {
+                LOGGER.debug("fping stderr: {}", stderr);
+            }
 
             var exitCode = process.waitFor();
 
-            isPortOpen = exitCode == 0;
-
-            LOGGER.debug("Port check for IP {} on port {}: {}", ip, port, isPortOpen ? "open" : "closed");
-          }
-          catch (Exception e)
-          {
-            LOGGER.error("Error checking port {} for IP {}: {}", port, ip, e.getMessage());
-
-            isPortOpen = false;
-          }
+            if (exitCode != 0 && aliveIps.isEmpty())
+            {
+                LOGGER.warn("fping exited with code {} and no alive IPs", exitCode);
+            }
         }
-        else
+        catch (Exception e)
         {
-          LOGGER.debug("IP {} is not reachable, skipping port check", ip);
+            LOGGER.error("Error running fping: {}", e.getMessage());
         }
-        results.add(new JsonObject()
-          .put("ip", ip)
-          .put("reachable", isReachable)
-          .put("port_open", isPortOpen));
-      }
 
-      LOGGER.info("Reachability results: {}", results.encode());
+        // Check port for each IP
+        for (var ip : ipList)
+        {
+            var isReachable = aliveIps.contains(ip);
 
-      return results;
+            var isPortOpen = false;
+
+            if (isReachable)
+            {
+                try
+                {
+                  // Use nc to check port
+                    var pb = new ProcessBuilder("nc", "-z", "-w", "1", ip, String.valueOf(port));
+
+                    var process = pb.start();
+
+                    var exitCode = process.waitFor();
+
+                    isPortOpen = exitCode == 0;
+
+                    LOGGER.debug("Port check for IP {} on port {}: {}", ip, port, isPortOpen ? "open" : "closed");
+                }
+                catch (Exception exception)
+                {
+                    LOGGER.error("Error checking port {} for IP {}: {}", port, ip, exception.getMessage());
+
+                    isPortOpen = false;
+                }
+            }
+            else
+            {
+                LOGGER.debug("IP {} is not reachable, skipping port check", ip);
+            }
+            results.add(new JsonObject()
+              .put("ip", ip)
+              .put("reachable", isReachable)
+              .put("port_open", isPortOpen));
+        }
+
+        LOGGER.info("Reachability results: {}", results.encode());
+
+        return results;
     }
 
     public static JsonArray spawnPlugin(JsonObject pluginJson)
     {
-      var results = new JsonArray();
+        var results = new JsonArray();
 
-      Process process = null;
+        Process process = null;
 
-      BufferedReader stdInput = null;
+        BufferedReader stdInput = null;
 
-      BufferedReader stdError = null;
+        BufferedReader stdError = null;
 
-      OutputStreamWriter stdOutput = null;
+        OutputStreamWriter stdOutput = null;
 
-      LOGGER.info("-----------------------------------------------------------");
-
-      try
-      {
-        // Start the SSH plugin process
-        var pb = new ProcessBuilder("./plugin/ssh_plugin");
-
-        process = pb.start();
-
-        // Write Base64-encoded JSON to stdin
-        stdOutput = new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8);
-
-        String encodedInput = Base64.getEncoder().encodeToString(pluginJson.encode().getBytes(StandardCharsets.UTF_8));
-
-        stdOutput.write(encodedInput + "\n");
-
-        stdOutput.flush();
-
-        stdOutput.close();
-
-        // Read Base64-encoded JSON results from stdout
-        stdInput = new BufferedReader(new InputStreamReader(process.getInputStream()));
-
-        String line;
-
-        while ((line = stdInput.readLine()) != null)
-        {
-          try
-          {
-            byte[] decodedBytes = Base64.getDecoder().decode(line.trim());
-
-            var decoded = new String(decodedBytes, StandardCharsets.UTF_8);
-
-            results.add(new JsonObject(decoded));
-          }
-          catch (Exception e)
-          {
-            LOGGER.error("Failed to decode stdout line '{}': {}", line, e.getMessage());
-          }
-        }
-
-        // Read stderr for debugging
-        stdError = new BufferedReader(new InputStreamReader(process.getErrorStream()));
-
-        var stderr = new StringBuilder();
-
-        while ((line = stdError.readLine()) != null)
-        {
-          stderr.append(line).append("\n");
-        }
-
-        // Wait for the process to exit
-        var exitCode = process.waitFor(2, java.util.concurrent.TimeUnit.SECONDS) ? process.exitValue() : -1;
-
-        if (exitCode != 0)
-        {
-          LOGGER.warn("SSH plugin exited with code {}", exitCode);
-
-          if (results.isEmpty())
-          {
-            results.add(new JsonObject()
-              .put("status", "failed")
-              .put("error", "SSH plugin failed with exit code: " + exitCode));
-          }
-        }
-
-        // If no results were received, add an error
-        if (results.isEmpty())
-        {
-          results.add(new JsonObject()
-            .put("status", "failed")
-            .put("error", "No data returned from SSH plugin"));
-        }
-
-      }
-      catch (Exception e)
-      {
-        LOGGER.error("Error running SSH plugin: {}", e.getMessage());
-
-        results.add(new JsonObject()
-          .put("status", "failed")
-          .put("error", "Failed to run SSH plugin: " + e.getMessage()));
-      }
-      finally
-      {
         try
         {
-          if (stdInput != null)
-          {
-            stdInput.close();
-          }
-          if (stdError != null)
-          {
-            stdError.close();
-          }
-          if (stdOutput != null)
-          {
-            stdOutput.close();
-          }
-          if (process != null && process.isAlive())
-          {
-            process.destroy();
+          // Start the SSH plugin process
+            var pb = new ProcessBuilder("./plugin/ssh_plugin");
 
-            process.waitFor(6, java.util.concurrent.TimeUnit.SECONDS);
-          }
+            process = pb.start();
+
+            // Write Base64-encoded JSON to stdin
+            stdOutput = new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8);
+
+            String encodedInput = Base64.getEncoder().encodeToString(pluginJson.encode().getBytes(StandardCharsets.UTF_8));
+
+            stdOutput.write(encodedInput + "\n");
+
+            stdOutput.flush();
+
+            stdOutput.close();
+
+            // Read Base64-encoded JSON results from stdout
+            stdInput = new BufferedReader(new InputStreamReader(process.getInputStream()));
+
+            String line;
+
+            while ((line = stdInput.readLine()) != null)
+            {
+                try
+                {
+                    byte[] decodedBytes = Base64.getDecoder().decode(line.trim());
+
+                    var decoded = new String(decodedBytes, StandardCharsets.UTF_8);
+
+                    results.add(new JsonObject(decoded));
+                }
+                catch (Exception e)
+                {
+                    LOGGER.error("Failed to decode stdout line '{}': {}", line, e.getMessage());
+                }
+            }
+
+            // Read stderr for debugging
+            stdError = new BufferedReader(new InputStreamReader(process.getErrorStream()));
+
+            var stderr = new StringBuilder();
+
+            while ((line = stdError.readLine()) != null)
+            {
+                stderr.append(line).append("\n");
+            }
+
+            // Wait for the process to exit
+            var exitCode = process.waitFor(2, java.util.concurrent.TimeUnit.SECONDS) ? process.exitValue() : -1;
+
+            if (exitCode != 0)
+            {
+                LOGGER.warn("SSH plugin exited with code {}", exitCode);
+
+                if (results.isEmpty())
+                {
+                    results.add(new JsonObject()
+                      .put("status", "failed")
+                      .put("error", "SSH plugin failed with exit code: " + exitCode));
+                }
+            }
+
+            // If no results were received, add an error
+            if (results.isEmpty())
+            {
+                results.add(new JsonObject()
+                  .put("status", "failed")
+                  .put("error", "No data returned from SSH plugin"));
+            }
+
         }
         catch (Exception e)
         {
-          LOGGER.error("Error cleaning up SSH plugin process: {}", e.getMessage());
+            LOGGER.error("Error running SSH plugin: {}", e.getMessage());
+
+            results.add(new JsonObject()
+              .put("status", "failed")
+              .put("error", "Failed to run SSH plugin: " + e.getMessage()));
         }
-      }
-      return results;
+        finally
+        {
+            try
+            {
+                if (stdInput != null)
+                {
+                    stdInput.close();
+                }
+                if (stdError != null)
+                {
+                    stdError.close();
+                }
+                if (stdOutput != null)
+                {
+                    stdOutput.close();
+                }
+                if (process != null && process.isAlive())
+                {
+                    process.destroy();
+
+                    process.waitFor(6, java.util.concurrent.TimeUnit.SECONDS);
+                }
+            }
+            catch (Exception e)
+            {
+                LOGGER.error("Error cleaning up SSH plugin process: {}", e.getMessage());
+            }
+        }
+        return results;
     }
 }
