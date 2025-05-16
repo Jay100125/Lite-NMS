@@ -114,4 +114,98 @@ public class QueryConstant
               GROUP BY dp.id, dp.discovery_profile_name, dp.ip, dp.status, dp.port;""";
 
   public static final String GET_DISCOVERY_RESULTS = "SELECT * FROM discovery_result WHERE discovery_id = $1";
+
+  public static final String INSERT_PROVISIONING_AND_METRICS = """
+       WITH input_ips AS (
+            SELECT unnest($2::varchar[]) AS ip
+        ),
+        discovery_validation AS (
+            SELECT
+                dr.ip,
+                dr.credential_profile_id,
+                dr.port
+            FROM discovery_result dr
+            JOIN input_ips i ON dr.ip = i.ip
+            WHERE dr.discovery_id = $1
+            AND dr.result = 'completed'
+        ),
+        invalid_ips AS (
+            SELECT
+                i.ip,
+                CASE
+                    WHEN dr.ip IS NULL THEN 'IP not found in discovery results'
+                    ELSE 'Discovery not completed'
+                END AS error
+            FROM input_ips i
+            LEFT JOIN discovery_result dr ON dr.ip = i.ip AND dr.discovery_id = $1
+            WHERE dr.ip IS NULL OR dr.result != 'completed'
+        ),
+        inserted_provisioning_jobs AS (
+            INSERT INTO provisioning_jobs (credential_profile_id, ip, port)
+            SELECT
+                dv.credential_profile_id,
+                dv.ip,
+                dv.port
+            FROM discovery_validation dv
+            ON CONFLICT (ip) DO NOTHING
+            RETURNING id AS provisioning_job_id, credential_profile_id, ip, port
+        ),
+        metric_names AS (
+            SELECT name
+            FROM (VALUES
+                ('CPU'::metric_name),
+                ('MEMORY'::metric_name),
+                ('DISK'::metric_name),
+                ('UPTIME'::metric_name),
+                ('NETWORK'::metric_name),
+                ('PROCESS'::metric_name)
+            ) AS metrics (name)
+        ),
+        inserted_metrics AS (
+            INSERT INTO metrics (provisioning_job_id, name, polling_interval, is_enabled)
+            SELECT
+                pj.provisioning_job_id,
+                mn.name,
+                300,
+                TRUE
+            FROM inserted_provisioning_jobs pj
+            CROSS JOIN metric_names mn
+            RETURNING metric_id, provisioning_job_id, name
+        )
+        SELECT
+            COALESCE(
+                (SELECT json_agg(
+                    json_build_object(
+                        'ip', pj.ip,
+                        'provisioning_job_id', pj.provisioning_job_id,
+                        'credential_profile_id', pj.credential_profile_id,
+                        'port', pj.port,
+                        'metrics', (
+                            SELECT json_agg(
+                                json_build_object(
+                                    'metric_id', m.metric_id,
+                                    'name', m.name
+                                )
+                            )
+                            FROM inserted_metrics m
+                            WHERE m.provisioning_job_id = pj.provisioning_job_id
+                        ),
+                        'cred_data', cp.cred_data
+                    )
+                )
+                FROM inserted_provisioning_jobs pj
+                JOIN credential_profile cp ON pj.credential_profile_id = cp.id),
+                '[]'::json
+            ) AS valid_ips,
+            COALESCE(
+                (SELECT json_agg(
+                    json_build_object(
+                        'ip', iv.ip,
+                        'error', iv.error
+                    )
+                )
+                FROM invalid_ips iv),
+                '[]'::json
+            ) AS invalid_ips
+        """;
 }

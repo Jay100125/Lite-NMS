@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 public class Utility
 {
@@ -172,7 +173,6 @@ public class Utility
 
             LOGGER.info("fping alive IPs: {}", aliveIps);
 
-            LOGGER.info("FPING command: {}", String.join(" ", command));
             // Log stderr for debugging
 
             var stderrReader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
@@ -280,6 +280,8 @@ public class Utility
 
             String line;
 
+            var exitCode = process.waitFor(2, TimeUnit.MINUTES) ? process.exitValue() : -1;
+
             while ((line = stdInput.readLine()) != null)
             {
                 try
@@ -307,7 +309,6 @@ public class Utility
             }
 
             // Wait for the process to exit
-            var exitCode = process.waitFor(2, java.util.concurrent.TimeUnit.SECONDS) ? process.exitValue() : -1;
 
             if (exitCode != 0)
             {

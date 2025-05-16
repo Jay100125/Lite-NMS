@@ -45,172 +45,152 @@ public class Discovery
    * @param context The routing context containing the HTTP request.
    */
 
-  private void create(RoutingContext context)
-  {
-    try
+    private void create(RoutingContext context)
     {
-      var body = context.body().asJsonObject();
-
-      if (body == null || !body.containsKey(DISCOVERY_PROFILE_NAME) || !body.containsKey(CREDENTIAL_PROFILE_ID) || !body.containsKey(IP_ADDRESS) || !body.containsKey(PORT))
-      {
-        ApiUtils.sendError(context, 400, "missing field or invalid data");
-
-        return;
-      }
-
-      var discoveryName = body.getString(DISCOVERY_PROFILE_NAME);
-
-      var credentialIdsArray = body.getJsonArray(CREDENTIAL_PROFILE_ID);
-
-      var ip = body.getString(IP_ADDRESS);
-
-      var portStr = body.getString(PORT);
-
-      if (discoveryName.isEmpty() || credentialIdsArray.isEmpty() || ip.isEmpty() || portStr.isEmpty())
-      {
-        ApiUtils.sendError(context, 400, "missing field or invalid data");
-
-        return;
-      }
-
-      int port;
-
-      try
-      {
-        port = Integer.parseInt(portStr);
-      }
-      catch (Exception e)
-      {
-        ApiUtils.sendError(context, 400, "Invalid port");
-
-        return;
-      }
-
-      var credentialIds = new JsonArray();
-
-      for (var i = 0; i < credentialIdsArray.size(); i++)
-      {
         try
         {
-          var credentialId = Long.parseLong(credentialIdsArray.getString(i));
+            var body = context.body().asJsonObject();
 
-          credentialIds.add(credentialId);
+            if (body == null || !body.containsKey(DISCOVERY_PROFILE_NAME) || !body.containsKey(CREDENTIAL_PROFILE_ID) || !body.containsKey(IP_ADDRESS) || !body.containsKey(PORT))
+            {
+                ApiUtils.sendError(context, 400, "missing field or invalid data");
+
+                return;
+            }
+
+            var discoveryName = body.getString(DISCOVERY_PROFILE_NAME);
+
+            var credentialIds = body.getJsonArray(CREDENTIAL_PROFILE_ID);
+
+            var ip = body.getString(IP_ADDRESS);
+
+            var port = body.getInteger(PORT);
+
+            if (discoveryName.isEmpty() || credentialIds.isEmpty() || ip.isEmpty() || port <= 0 || port >= 65536)
+            {
+                ApiUtils.sendError(context, 400, "Missing field or invalid data");
+
+                return;
+            }
+
+          // Insert discovery profile into database.
+          var query = new JsonObject()
+            .put(QUERY, QueryConstant.INSERT_DISCOVERY)
+            .put(PARAMS, new JsonArray().add(discoveryName).add(ip).add(port));
+
+          executeQuery(query)
+            .compose(result ->
+            {
+                if(result.isEmpty())
+                {
+                    return Future.failedFuture("Failed to create discovery profile");
+                }
+
+                var discoveryId = result.getJsonObject(0).getLong(ID);
+
+                var batchParams = new JsonArray();
+
+                for (var i = 0; i < credentialIds.size(); i++)
+                {
+                    batchParams.add(new JsonArray().add(discoveryId).add(credentialIds.getLong(i)));
+                }
+
+                var batchQuery = new JsonObject()
+                  .put(QUERY, QueryConstant.INSERT_DISCOVERY_CREDENTIAL)
+                  .put(BATCHPARAMS, batchParams);
+
+                return executeBatchQuery(batchQuery)
+                  .map(discoveryId);
+
+             })
+            .onComplete(queryResult ->
+            {
+                if (queryResult.succeeded())
+                {
+                    var discoveryId = queryResult.result();
+
+                    context.response()
+                      .setStatusCode(201)
+                      .putHeader("Content-Type", "application/json")
+                      .end(new JsonObject()
+                        .put(MESSAGE, SUCCESS)
+                        .put(ID, discoveryId)
+                        .encodePrettily());
+                }
+                else
+                {
+                    ApiUtils.sendError(context, 500, "Failed to create discovery: " + queryResult.cause().getMessage());
+                }
+            });
         }
         catch (Exception e)
         {
-          ApiUtils.sendError(context, 400, "Invalid credential_profile_id: " + credentialIdsArray.getString(i));
+            LOGGER.error("Error creating discovery: {}", e.getMessage());
 
-          return;
+            ApiUtils.sendError(context, 500, "Internal server error");
         }
-      }
-
-      // Insert discovery profile into database.
-      var query = new JsonObject()
-        .put(QUERY, QueryConstant.INSERT_DISCOVERY)
-        .put(PARAMS, new JsonArray().add(discoveryName).add(ip).add(port));
-
-      executeQuery(query)
-        .compose(result ->
-        {
-          if(result.isEmpty())
-          {
-            return Future.failedFuture("Failed to create discovery profile");
-          }
-
-          var discoveryId = result.getJsonObject(0).getLong(ID);
-
-          var batchParams = new JsonArray();
-
-          for (var i = 0; i < credentialIds.size(); i++)
-          {
-            batchParams.add(new JsonArray().add(discoveryId).add(credentialIds.getLong(i)));
-          }
-
-          var batchQuery = new JsonObject()
-            .put(QUERY, QueryConstant.INSERT_DISCOVERY_CREDENTIAL)
-            .put(BATCHPARAMS, batchParams);
-
-          return executeBatchQuery(batchQuery)
-            .map(discoveryId);
-
-        })
-        .onSuccess(discoveryId -> context.response()
-                .setStatusCode(201)
-                .putHeader("Content-Type", "application/json")
-                .end(new JsonObject()
-                        .put(MESSAGE, SUCCESS)
-                        .put(ID, discoveryId)
-                        .encodePrettily()))
-        .onFailure(err -> ApiUtils.sendError(context, 500, "Failed to create discovery: " + err.getMessage()));
     }
-    catch (Exception e)
-    {
-      LOGGER.error("Error creating discovery: {}", e.getMessage());
-
-      ApiUtils.sendError(context, 500, "Internal server error");
-    }
-  }
 
   /**
    * Handles GET requests to retrieve a discovery profile by its ID.
    *
    * @param context The routing context containing the HTTP request.
    */
-  private void getById(RoutingContext context)
-  {
-    try
+    private void getById(RoutingContext context)
     {
-      var id = ApiUtils.parseIdFromPath(context, ID);
-
-      if (id == -1)
-      {
-        return;
-      }
-
-      // Prepare query to fetch discovery profile by ID.
-      var query = new JsonObject()
-        .put(QUERY, QueryConstant.GET_DISCOVERY_BY_ID)
-        .put(PARAMS, new JsonArray().add(id));
-
-      executeQuery(query)
-        .onComplete(queryResult ->
+        try
         {
-          if(queryResult.succeeded())
-          {
-            var result = queryResult.result();
+            var id = ApiUtils.parseIdFromPath(context, ID);
 
-            if (!result.isEmpty())
+            if (id == -1)
             {
-              context.response()
-                .setStatusCode(200)
-                .putHeader("Content-Type", "application/json")
-                .end(new JsonObject()
-                  .put(MESSAGE, SUCCESS)
-                  .put(RESULT, result)
-                  .encodePrettily());
+                return;
             }
-            else
-            {
-              ApiUtils.sendError(context, 404, "Discovery profile not found");
-            }
-          }
-          else
-          {
-            var error = queryResult.cause();
 
-            LOGGER.error("Error executing query: {}", error.getMessage());
+            // Prepare query to fetch discovery profile by ID.
+            var query = new JsonObject()
+              .put(QUERY, QueryConstant.GET_DISCOVERY_BY_ID)
+              .put(PARAMS, new JsonArray().add(id));
 
-            ApiUtils.sendError(context, 500, "Database query failed: " + error.getMessage());
-          }
-        });
+            executeQuery(query)
+              .onComplete(queryResult ->
+              {
+                  if(queryResult.succeeded())
+                  {
+                      var result = queryResult.result();
+
+                      if (!result.isEmpty())
+                      {
+                          context.response()
+                            .setStatusCode(200)
+                            .putHeader("Content-Type", "application/json")
+                            .end(new JsonObject()
+                              .put(MESSAGE, SUCCESS)
+                              .put(RESULT, result)
+                              .encodePrettily());
+                      }
+                      else
+                      {
+                          ApiUtils.sendError(context, 404, "Discovery profile not found");
+                      }
+                  }
+                  else
+                  {
+                      var error = queryResult.cause();
+
+                      LOGGER.error("Error executing query: {}", error.getMessage());
+
+                      ApiUtils.sendError(context, 500, "Database query failed: " + error.getMessage());
+                  }
+              });
+        }
+        catch (Exception e)
+        {
+            LOGGER.error("Error getting discovery by ID: {}", e.getMessage());
+
+            ApiUtils.sendError(context, 500, "Internal server error");
+        }
     }
-    catch (Exception e)
-    {
-      LOGGER.error("Error getting discovery by ID: {}", e.getMessage());
-
-      ApiUtils.sendError(context, 500, "Internal server error");
-    }
-  }
 
 
   /**
@@ -218,363 +198,337 @@ public class Discovery
    *
    * @param context The routing context containing the HTTP request.
    */
-  private void getAll(RoutingContext context)
-  {
-    var query = new JsonObject().put(QUERY, QueryConstant.GET_ALL_DISCOVERIES);
+    private void getAll(RoutingContext context)
+    {
+        var query = new JsonObject().put(QUERY, QueryConstant.GET_ALL_DISCOVERIES);
 
-    executeQuery(query)
-      .onComplete(queryResult ->
-      {
-        if(queryResult.succeeded())
-        {
-          var result = queryResult.result();
-
-          if (!result.isEmpty())
+        executeQuery(query)
+          .onComplete(queryResult ->
           {
-            context.response()
-              .setStatusCode(200)
-              .putHeader("Content-Type", "application/json")
-              .end(new JsonObject()
-                .put(MESSAGE, SUCCESS)
-                .put(RESULT, result)
-                .encodePrettily());
-          }
-          else
-          {
-            ApiUtils.sendError(context, 404, "No discovery profiles found");
-          }
-        }
-        else
-        {
-          var error = queryResult.cause();
+              if(queryResult.succeeded())
+              {
+                  var result = queryResult.result();
 
-          LOGGER.error("Error executing query: {}", error.getMessage());
+                  if (!result.isEmpty())
+                  {
+                      context.response()
+                        .setStatusCode(200)
+                        .putHeader("Content-Type", "application/json")
+                        .end(new JsonObject()
+                          .put(MESSAGE, SUCCESS)
+                          .put(RESULT, result)
+                          .encodePrettily());
+                  }
+                  else
+                  {
+                      ApiUtils.sendError(context, 404, "No discovery profiles found");
+                  }
+              }
+              else
+              {
+                  var error = queryResult.cause();
 
-          ApiUtils.sendError(context, 500, "Database query failed: " + error.getMessage());
-        }
-      });
-  }
+                  LOGGER.error("Error executing query: {}", error.getMessage());
+
+                  ApiUtils.sendError(context, 500, "Database query failed: " + error.getMessage());
+              }
+          });
+    }
 
   /**
    * Handles DELETE requests to remove a discovery profile by its ID.
    *
    * @param context The routing context containing the HTTP request.
    */
-  private void delete(RoutingContext context)
-  {
-    try
+    private void delete(RoutingContext context)
     {
-      // Parse and validate discovery ID from path.
-      var id = ApiUtils.parseIdFromPath(context, ID);
-
-      if (id == -1)
-      {
-        return;
-      }
-
-      // Prepare query to delete discovery profile by ID.
-      var query = new JsonObject()
-                  .put(QUERY, QueryConstant.DELETE_DISCOVERY)
-                  .put(PARAMS, new JsonArray().add(id));
-
-      executeQuery(query)
-        .onComplete(queryResult ->
+        try
         {
-          if(queryResult.succeeded())
-          {
-            var result = queryResult.result();
+           // Parse and validate discovery ID from path.
+            var id = ApiUtils.parseIdFromPath(context, ID);
 
-            if (!result.isEmpty())
+            if (id == -1)
             {
-              context.response()
-                .setStatusCode(200)
-                .putHeader("Content-Type", "application/json")
-                .end(result.encodePrettily());
+                return;
             }
-            else
-            {
-              ApiUtils.sendError(context, 404, "Discovery profile not found");
-            }
-          }
-          else
-          {
-            var error = queryResult.cause();
 
-            ApiUtils.sendError(context, 500, "Database query failed: " + error.getMessage());
-          }
-        });
+            // Prepare query to delete discovery profile by ID.
+            var query = new JsonObject()
+                        .put(QUERY, QueryConstant.DELETE_DISCOVERY)
+                        .put(PARAMS, new JsonArray().add(id));
+
+            executeQuery(query)
+              .onComplete(queryResult ->
+              {
+                  if(queryResult.succeeded())
+                  {
+                      var result = queryResult.result();
+
+                      if (!result.isEmpty())
+                      {
+                          context.response()
+                            .setStatusCode(200)
+                            .putHeader("Content-Type", "application/json")
+                            .end(result.encodePrettily());
+                      }
+                      else
+                      {
+                          ApiUtils.sendError(context, 404, "Discovery profile not found");
+                      }
+                  }
+                  else
+                  {
+                      var error = queryResult.cause();
+
+                      ApiUtils.sendError(context, 500, "Database query failed: " + error.getMessage());
+                  }
+              });
+        }
+        catch (Exception exception)
+        {
+            LOGGER.error("Error deleting discovery: {}", exception.getMessage());
+
+            ApiUtils.sendError(context, 500, "Internal server error");
+        }
+
     }
-    catch (Exception e)
-    {
-      LOGGER.error("Error deleting discovery: {}", e.getMessage());
-
-      ApiUtils.sendError(context, 500, "Internal server error");
-    }
-
-  }
 
   /**
    * Handles PUT requests to update an existing discovery profile, including its credentials.
    *
    * @param context The routing context containing the HTTP request.
    */
-  private void update(RoutingContext context)
-  {
-    try
+    private void update(RoutingContext context)
     {
-      var id = ApiUtils.parseIdFromPath(context, ID);
-
-      if (id == -1)
-      {
-        return;
-      }
-
-      var body = context.body().asJsonObject();
-
-      if (body == null || body.isEmpty())
-      {
-        ApiUtils.sendError(context, 400, "Missing or empty request body");
-
-        return;
-      }
-
-      var discoveryName = body.getString(DISCOVERY_PROFILE_NAME);
-
-      var credIdsArray = body.getJsonArray(CREDENTIAL_PROFILE_ID);
-
-      var ip = body.getString(IP_ADDRESS);
-
-      var portStr = body.getString(PORT);
-
-      if (discoveryName == null || credIdsArray == null || ip == null || portStr == null)
-      {
-        ApiUtils.sendError(context, 400, "Missing required fields");
-
-        return;
-      }
-
-      int port;
-
-      try
-      {
-        port = Integer.parseInt(portStr);
-      }
-      catch (Exception e)
-      {
-        ApiUtils.sendError(context, 400, "Invalid port");
-
-        return;
-      }
-
-      var credIds = new JsonArray();
-
-      for (var i = 0; i < credIdsArray.size(); i++)
-      {
         try
         {
-          var credId = Long.parseLong(credIdsArray.getString(i));
+            var id = ApiUtils.parseIdFromPath(context, ID);
 
-          credIds.add(credId);
-        }
-        catch (Exception e)
-        {
-          ApiUtils.sendError(context, 400, "Invalid credential_profile_id: " + credIdsArray.getString(i));
+            if (id == -1)
+            {
+                return;
+            }
 
-          return;
-        }
-      }
+            var body = context.body().asJsonObject();
 
-      var existsQuery = new JsonObject()
-        .put(QUERY, QueryConstant.GET_DISCOVERY_BY_ID)
-        .put(PARAMS, new JsonArray().add(id));
+            if (body == null || body.isEmpty())
+            {
+                ApiUtils.sendError(context, 400, "Missing or empty request body");
 
+                return;
+            }
 
-      executeQuery(existsQuery)
-        .compose(result ->
-        {
-          if (result.isEmpty())
+          var discoveryName = body.getString(DISCOVERY_PROFILE_NAME);
+
+          var credentialIds = body.getJsonArray(CREDENTIAL_PROFILE_ID);
+
+          var ip = body.getString(IP_ADDRESS);
+
+          var port = body.getInteger(PORT);
+
+          if (discoveryName == null || credentialIds == null || ip == null || port == null)
           {
-            return Future.failedFuture("Discovery profile not found");
+              ApiUtils.sendError(context, 400, "Missing required fields");
+
+              return;
           }
 
-          // Update discovery profile in database
-          var updateQuery = new JsonObject()
-            .put(QUERY, QueryConstant.UPDATE_DISCOVERY)
-            .put(PARAMS, new JsonArray().add(discoveryName).add(ip).add(port).add(id));
-
-          // Delete existing credential mappings
-          var deleteQuery = new JsonObject()
-            .put(QUERY, QueryConstant.DELETE_DISCOVERY_CREDENTIALS)
+          var existsQuery = new JsonObject()
+            .put(QUERY, QueryConstant.GET_DISCOVERY_BY_ID)
             .put(PARAMS, new JsonArray().add(id));
 
-          // Prepare batch insert for new credential mappings
-          var batchParams = new JsonArray();
 
-          for (var i = 0; i < credIds.size(); i++)
-          {
-            batchParams.add(new JsonArray().add(id).add(credIds.getLong(i)));
-          }
+          executeQuery(existsQuery)
+            .compose(result ->
+            {
+                if (result.isEmpty())
+                {
+                    return Future.failedFuture("Discovery profile not found");
+                }
 
-          var batchQuery = new JsonObject()
-            .put(QUERY, QueryConstant.INSERT_DISCOVERY_CREDENTIAL)
-            .put(BATCHPARAMS, batchParams);
+                // Update discovery profile in database
+                var updateQuery = new JsonObject()
+                  .put(QUERY, QueryConstant.UPDATE_DISCOVERY)
+                  .put(PARAMS, new JsonArray().add(discoveryName).add(ip).add(port).add(id));
 
-          return executeQuery(updateQuery)
-            .compose(v -> executeQuery(deleteQuery))
-            .compose(v -> executeBatchQuery(batchQuery));
-        })
-        .onComplete(queryResult ->
+                // Delete existing credential mappings
+                var deleteQuery = new JsonObject()
+                  .put(QUERY, QueryConstant.DELETE_DISCOVERY_CREDENTIALS)
+                  .put(PARAMS, new JsonArray().add(id));
+
+                // Prepare batch insert for new credential mappings
+                var batchParams = new JsonArray();
+
+                for (var i = 0; i < credentialIds.size(); i++)
+                {
+                    batchParams.add(new JsonArray().add(id).add(credentialIds.getLong(i)));
+                }
+
+                var batchQuery = new JsonObject()
+                  .put(QUERY, QueryConstant.INSERT_DISCOVERY_CREDENTIAL)
+                  .put(BATCHPARAMS, batchParams);
+
+                return executeQuery(updateQuery)
+                  .compose(v -> executeQuery(deleteQuery))
+                  .compose(v -> executeBatchQuery(batchQuery));
+            })
+            .onComplete(queryResult ->
+            {
+                if(queryResult.succeeded())
+                {
+                    context.response()
+                      .setStatusCode(200)
+                      .putHeader("Content-Type", "application/json")
+                      .end(new JsonObject()
+                        .put(MESSAGE, SUCCESS)
+                        .put(ID, id)
+                        .encodePrettily());
+                }
+                else
+                {
+                    var error = queryResult.cause();
+
+                    LOGGER.error("Error updating discovery profile {}: {}", id, error.getMessage());
+
+                    if (error.getMessage().equals("Discovery profile not found"))
+                    {
+                        ApiUtils.sendError(context, 404, "Discovery profile not found");
+                    }
+                    else
+                    {
+                        ApiUtils.sendError(context, 500, "Failed to update discovery: " + error.getMessage());
+                    }
+                }
+            });
+        }
+        catch (Exception exception)
         {
-          if(queryResult.succeeded())
-          {
-            context.response()
-              .setStatusCode(200)
-              .putHeader("Content-Type", "application/json")
-              .end(new JsonObject()
-                .put(MESSAGE, SUCCESS)
-                .put(ID, id)
-                .encodePrettily());
-          }
-          else
-          {
-            var error = queryResult.cause();
+            LOGGER.error("Error updating discovery: {}", exception.getMessage());
 
-            LOGGER.error("Error updating discovery profile {}: {}", id, error.getMessage());
-
-            if (error.getMessage().equals("Discovery profile not found"))
-            {
-              ApiUtils.sendError(context, 404, "Discovery profile not found");
-            }
-            else
-            {
-              ApiUtils.sendError(context, 500, "Failed to update discovery: " + error.getMessage());
-            }
-          }
-        });
+            ApiUtils.sendError(context, 500, "Internal server error");
+        }
     }
-    catch (Exception exception)
-    {
-      LOGGER.error("Error updating discovery: {}", exception.getMessage());
-
-      ApiUtils.sendError(context, 500, "Internal server error");
-    }
-  }
 
   /**
    * Handles POST requests to run a discovery profile, scanning the network for devices.
    *
    * @param context The routing context containing the HTTP request.
    */
-  private void run(RoutingContext context)
-  {
-    try
+    private void run(RoutingContext context)
     {
-      var id = ApiUtils.parseIdFromPath(context, ID);
-
-      if (id == -1)
-      {
-        return;
-      }
-
-      var checkQuery = new JsonObject()
-        .put(QUERY, QueryConstant.GET_DISCOVERY_BY_ID)
-        .put(PARAMS, new JsonArray().add(id));
-
-      executeQuery(checkQuery).onComplete(queryResult ->
-      {
-        if (queryResult.succeeded())
+        try
         {
-          var result = queryResult.result();
+            var id = ApiUtils.parseIdFromPath(context, ID);
 
-          if (result.isEmpty())
-          {
-            ApiUtils.sendError(context, 404, "Discovery profile not found");
+            if (id == -1)
+            {
+                return;
+            }
 
-            return;
-          }
+            var checkQuery = new JsonObject()
+              .put(QUERY, QueryConstant.GET_DISCOVERY_BY_ID)
+              .put(PARAMS, new JsonArray().add(id));
 
-          var request = new JsonObject().put(ID, id);
-          vertx.eventBus().send(DISCOVERY_RUN,request);
+            executeQuery(checkQuery).onComplete(queryResult ->
+            {
+                if (queryResult.succeeded())
+                {
+                    var result = queryResult.result();
 
-          context.response()
-            .setStatusCode(202)
-            .putHeader("Content-Type", "application/json")
-            .end(new JsonObject()
-              .put(MESSAGE, "Discovery is currently being processed")
-              .put(ID, id)
-              .encodePrettily());
+                    if (result.isEmpty())
+                    {
+                        ApiUtils.sendError(context, 404, "Discovery profile not found");
+
+                        return;
+                    }
+
+                    var request = new JsonObject().put(ID, id);
+
+                    vertx.eventBus().send(DISCOVERY_RUN,request);
+
+                    context.response()
+                      .setStatusCode(202)
+                      .putHeader("Content-Type", "application/json")
+                      .end(new JsonObject()
+                        .put(MESSAGE, "Discovery is currently being processed")
+                        .put(ID, id)
+                        .encodePrettily());
+                }
+                else
+                {
+                    var error = queryResult.cause();
+
+                    ApiUtils.sendError(context, 500, "Failed to check discovery profile: " + error.getMessage());
+                }
+            });
         }
-        else
+        catch (Exception exception)
         {
-          var error = queryResult.cause();
+            LOGGER.error("Failed to process discovery request");
 
-          ApiUtils.sendError(context, 500, "Failed to check discovery profile: " + error.getMessage());
+            ApiUtils.sendError(context, 500, "Internal server error");
         }
-      });
     }
-    catch (Exception e)
+
+    private void getResults(RoutingContext context)
     {
-      LOGGER.error("Failed to process discovery request");
-    }
-  }
+        try
+        {
+            var id = ApiUtils.parseIdFromPath(context, ID);
 
-  private void getResults(RoutingContext context)
-  {
-    try
-    {
-      var id = ApiUtils.parseIdFromPath(context, ID);
-
-      if (id == -1)
-      {
-        ApiUtils.sendError(context, 400, "Invalid discovery ID");
-        return;
-      }
-
-      var query = new JsonObject()
-        .put(QUERY, QueryConstant.GET_DISCOVERY_RESULTS)
-        .put(PARAMS, new JsonArray().add(id));
-
-      executeQuery(query)
-        .onComplete(queryResult -> {
-          if(queryResult.succeeded())
-          {
-            var result = queryResult.result();
-
-            if (result.isEmpty())
+            if (id == -1)
             {
-              context.response()
-                .setStatusCode(200)
-                .putHeader("Content-Type", "application/json")
-                .end(new JsonObject()
-                  .put(MESSAGE, "No discovery results found")
-                  .put(RESULT, new JsonArray())
-                  .encodePrettily());
-            }
-            else
-            {
-              context.response()
-                .setStatusCode(200)
-                .putHeader("Content-Type", "application/json")
-                .end(new JsonObject()
-                  .put(MESSAGE, SUCCESS)
-                  .put(RESULT, result)
-                  .encodePrettily());
-            }
-          }
-          else
-          {
-            var error = queryResult.cause();
+                ApiUtils.sendError(context, 400, "Invalid discovery ID");
 
-            ApiUtils.sendError(context, 500, "Database query failed: " + error.getMessage());
-          }
-        });
-    }
-    catch (Exception exception)
-    {
-      LOGGER.error("Error retrieving discovery results: {}", exception.getMessage());
+                return;
+            }
 
-      ApiUtils.sendError(context, 500, "Internal server error");
+            var query = new JsonObject()
+              .put(QUERY, QueryConstant.GET_DISCOVERY_RESULTS)
+              .put(PARAMS, new JsonArray().add(id));
+
+            executeQuery(query)
+              .onComplete(queryResult ->
+              {
+                  if(queryResult.succeeded())
+                  {
+                      var result = queryResult.result();
+
+                      if (result.isEmpty())
+                      {
+                          context.response()
+                            .setStatusCode(200)
+                            .putHeader("Content-Type", "application/json")
+                            .end(new JsonObject()
+                              .put(MESSAGE, "No discovery results found")
+                              .put(RESULT, new JsonArray())
+                              .encodePrettily());
+                      }
+                      else
+                      {
+                          context.response()
+                            .setStatusCode(200)
+                            .putHeader("Content-Type", "application/json")
+                            .end(new JsonObject()
+                              .put(MESSAGE, SUCCESS)
+                              .put(RESULT, result)
+                              .encodePrettily());
+                      }
+                  }
+                  else
+                  {
+                      var error = queryResult.cause();
+
+                      ApiUtils.sendError(context, 500, "Database query failed: " + error.getMessage());
+                  }
+              });
+        }
+        catch (Exception exception)
+        {
+            LOGGER.error("Error retrieving discovery results: {}", exception.getMessage());
+
+            ApiUtils.sendError(context, 500, "Internal server error");
+        }
     }
-  }
 
 }

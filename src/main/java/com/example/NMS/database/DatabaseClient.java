@@ -72,18 +72,14 @@ public class DatabaseClient
 {
   private static final Logger LOGGER = LoggerFactory.getLogger(DatabaseClient.class);
 
+  private static DatabaseClient instance;
+
+  private static SqlClient client;
+
   // Private constructor to prevent instantiation
-  private DatabaseClient()
+  private DatabaseClient(Vertx vertx)
   {
-    throw new AssertionError("Utility class, not meant to be instantiated");
-  }
-
-  // Static inner class for lazy initialization
-  private static class ClientHolder
-  {
-    private static final SqlClient CLIENT;
-
-    static
+    if (client == null)
     {
       LOGGER.info("Initializing database connection pool...");
 
@@ -92,41 +88,45 @@ public class DatabaseClient
         .setPort(DB_PORT)
         .setDatabase(DB_NAME)
         .setUser(DB_USER)
-        .setPassword(DB_PASSWORD)
-        .setReconnectAttempts(5)
-        .setReconnectInterval(1000);
+        .setPassword(DB_PASSWORD);
 
       var poolOptions = new PoolOptions()
         .setMaxSize(10)
-        .setIdleTimeout(30) // seconds
-        .setConnectionTimeout(10); // seconds
+        .setIdleTimeout(30);
 
-     // Vertx instance is passed at runtime via getClient
-      CLIENT = PgBuilder.client()
+      client = PgBuilder.client()
         .with(poolOptions)
         .connectingTo(connectOptions)
         .using(vertx)
         .build();
-
-      LOGGER.info("Database connection pool initialized");
     }
   }
 
-  public static SqlClient getClient(Vertx vertx)
+  public static DatabaseClient getInstance(Vertx vertx)
   {
-    if (vertx == null) {
-      LOGGER.error("Vertx instance is null");
-      throw new IllegalArgumentException("Vertx instance cannot be null");
+    if (instance == null)
+    {
+      instance = new DatabaseClient(vertx);
     }
-    return ClientHolder.CLIENT;
+    return instance;
   }
 
-  public static void close()
+  public SqlClient getClient()
   {
-    var client = ClientHolder.CLIENT;
 
-    if (client != null) {
+    return client;
+  }
+
+  public void close()
+  {
+    if (client != null)
+    {
       client.close();
+
+      client = null;
+
+      instance = null;
+
       LOGGER.info("Database connection pool closed");
     }
   }

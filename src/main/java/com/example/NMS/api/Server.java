@@ -2,8 +2,6 @@ package com.example.NMS.api;
 
 import com.example.NMS.api.handlers.Auth;
 import com.example.NMS.api.handlers.Credential;
-//import com.example.NMS.api.handlers.Discovery;
-//import com.example.NMS.api.handlers.Provision;
 import com.example.NMS.api.handlers.Discovery;
 import com.example.NMS.api.handlers.Provision;
 import io.vertx.core.AbstractVerticle;
@@ -23,85 +21,87 @@ import static com.example.NMS.constant.Constant.*;
 
 public class Server extends AbstractVerticle
 {
-  private static final Logger LOGGER = LoggerFactory.getLogger(Server.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(Server.class);
 
-  @Override
-  public void start(Promise<Void> startPromise)
-  {
-
-    var jwtAuth = JWTAuth.create(vertx, new JWTAuthOptions()
-                                    .addPubSecKey(new PubSecKeyOptions()
-                                                        .setAlgorithm("HS256")
-                                                       .setBuffer(JWT_SECRET)));
-
-
-    var router = Router.router(vertx);
-
-    var authRoute = Router.router(vertx);
-
-    var discoveryRoute = Router.router(vertx);
-
-    var credentialRoute = Router.router(vertx);
-
-    var provisionRoute = Router.router(vertx);
-
-    router.route("/api/*").handler(BodyHandler.create());
-
-    router.route("/api/*").handler(ctx ->
+    @Override
+    public void start(Promise<Void> startPromise)
     {
-      String path = ctx.normalizedPath();
-      if (path.endsWith("/register") || path.endsWith("/login"))
-      {
-        ctx.next();
-      }
-      else
-      {
-        JWTAuthHandler.create(jwtAuth).handle(ctx);
-      }
-    });
 
-    router.route().subRouter(authRoute);
+        var jwtAuth = JWTAuth.create(vertx, new JWTAuthOptions()
+                                        .addPubSecKey(new PubSecKeyOptions()
+                                                            .setAlgorithm("HS256")
+                                                           .setBuffer(JWT_SECRET)));
 
-    router.route().subRouter(credentialRoute);
 
-    router.route().subRouter(discoveryRoute);
+        var router = Router.router(vertx);
 
-    router.route().subRouter(provisionRoute);
+        var authRoute = Router.router(vertx);
 
-    new Auth(jwtAuth).init(authRoute);
+        var discoveryRoute = Router.router(vertx);
 
-    new Credential().init(credentialRoute);
-//
-    new Discovery().init(discoveryRoute);
-//
-    new Provision().init(provisionRoute);
+        var credentialRoute = Router.router(vertx);
 
-    router.errorHandler(401, ctx -> {
-      ctx.response()
-        .setStatusCode(401)
-        .putHeader("Content-Type", "application/json")
-        .end(new JsonObject()
-          .put(ERROR, "Unauthorized")
-          .put(MESSAGE, "Invalid or missing JWT token")
-          .encode());
-    });
+        var provisionRoute = Router.router(vertx);
 
-    vertx.createHttpServer().requestHandler(router)
-      .listen(SERVER_PORT)
-      .onComplete(handler ->
-      {
-        if (handler.succeeded())
+        router.route("/api/*").handler(BodyHandler.create());
+
+        router.route("/api/*").handler(ctx ->
         {
-          LOGGER.info("Server Created on port 8080");
+            var path = ctx.normalizedPath();
 
-          startPromise.complete();
-        }
-        else
+            if (path.endsWith("/register") || path.endsWith("/login"))
+            {
+              ctx.next();
+            }
+            else
+            {
+              JWTAuthHandler.create(jwtAuth).handle(ctx);
+            }
+        });
+
+        router.route().subRouter(authRoute);
+
+        router.route().subRouter(credentialRoute);
+
+        router.route().subRouter(discoveryRoute);
+
+        router.route().subRouter(provisionRoute);
+
+        new Auth(jwtAuth).init(authRoute);
+
+        new Credential().init(credentialRoute);
+
+        new Discovery().init(discoveryRoute);
+
+        new Provision().init(provisionRoute);
+
+        router.errorHandler(401, context ->
         {
-          LOGGER.error("Server Failed");
+            context.response()
+              .setStatusCode(401)
+              .putHeader("Content-Type", "application/json")
+              .end(new JsonObject()
+                .put(ERROR, "Unauthorized")
+                .put(MESSAGE, "Invalid or missing JWT token")
+                .encode());
+        });
 
-          startPromise.fail(handler.cause());
-        }
-      });
-  }
+        vertx.createHttpServer().requestHandler(router)
+          .listen(SERVER_PORT)
+          .onComplete(handler ->
+          {
+              if (handler.succeeded())
+              {
+                  LOGGER.info("Server Created on port 8080");
+
+                  startPromise.complete();
+              }
+              else
+              {
+                  LOGGER.error("Server Failed");
+
+                  startPromise.fail(handler.cause());
+              }
+          });
+    }
 }

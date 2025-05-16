@@ -28,7 +28,7 @@ public class Constant {
 
   public static final String POLLING_BATCH_PROCESS = "polling.batch.process";
 
-  public static final String SUCCESS = "Success";
+  public static final String SUCCESS = "success";
 
   public static final String USERNAME = "username";
 

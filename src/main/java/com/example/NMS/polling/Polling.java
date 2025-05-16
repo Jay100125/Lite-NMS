@@ -37,6 +37,7 @@ public class Polling extends AbstractVerticle
                 {
                     LOGGER.info("Received {} jobs for polling", jobs.size());
 
+
                     var jobsToPoll = jobs.stream()
                       .map(obj -> (JsonObject) obj)
                       .collect(Collectors.toList());
@@ -108,9 +109,9 @@ public class Polling extends AbstractVerticle
                             targets.add(new JsonObject()
                               .put("ip.address", ip)
                               .put(PORT, sampleJob.getInteger(PORT))
-                              .put("user", sampleJob.getJsonObject(CRED_DATA).getString("user"))
+                              .put(USER, sampleJob.getJsonObject(CRED_DATA).getString(USER))
                               .put(PASSWORD, sampleJob.getJsonObject(CRED_DATA).getString(PASSWORD))
-                              .put("provision_profile_id", sampleJob.getLong("provisioning_job_id"))
+                              .put(PROVISIONING_JOB_ID, sampleJob.getLong(PROVISIONING_JOB_ID))
                               .put("metric_type", new JsonArray(metrics)));
                         }
                     });
@@ -132,7 +133,7 @@ public class Polling extends AbstractVerticle
             {
                 LOGGER.info("Plugin input: {}", pluginInput.encodePrettily());
 
-                JsonArray results = Utility.spawnPlugin(pluginInput);
+                var results = Utility.spawnPlugin(pluginInput);
 
                 LOGGER.info("Plugin result: {}", results.encodePrettily());
 
@@ -160,7 +161,7 @@ public class Polling extends AbstractVerticle
 
             if ("success".equals(resultObj.getString("status")))
             {
-                var jobId = resultObj.getLong("provision_profile_id");
+                var jobId = resultObj.getLong(PROVISIONING_JOB_ID);
 
                 var data = resultObj.getJsonObject("data");
 
