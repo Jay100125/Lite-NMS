@@ -83,13 +83,15 @@ public class Credential
                           ApiUtils.sendError(context, 409, "Cannot create credential");
                       }
 
-                      context.response()
-                        .setStatusCode(201)
-                        .putHeader("Content-Type", "application/json")
-                        .end(new JsonObject()
-                          .put(MESSAGE, SUCCESS)
-                          .put(ID, result.getJsonObject(0).getLong(ID))
-                          .encodePrettily());
+//                      context.response()
+//                        .setStatusCode(201)
+//                        .putHeader("Content-Type", "application/json")
+//                        .end(new JsonObject()
+//                          .put(MESSAGE, SUCCESS)
+//                          .put(ID, result.getJsonObject(0).getLong(ID))
+//                          .encodePrettily());
+
+                    ApiUtils.sendSuccess(context,201, "Credential profile created", result);
 
                   }
                   else
@@ -190,11 +192,13 @@ public class Credential
 
                       if (!result.isEmpty())
                       {
-                          context.response().setStatusCode(200)
-                            .putHeader("Content-Type", "application/json")
-                            .end(new JsonObject().put(MESSAGE, SUCCESS)
-                              .put(ID, result.getJsonObject(0).getLong(ID))
-                              .encodePrettily());
+//                          context.response().setStatusCode(200)
+//                            .putHeader("Content-Type", "application/json")
+//                            .end(new JsonObject().put(MESSAGE, SUCCESS)
+//                              .put(ID, result.getJsonObject(0).getLong(ID))
+//                              .encodePrettily());
+
+                        ApiUtils.sendSuccess(context,200, "Updated credential profile",result);
                       }
                       else
                       {
@@ -244,12 +248,13 @@ public class Credential
 
                   if (!result.isEmpty())
                   {
-                      context.response().setStatusCode(200)
-                        .putHeader("Content-Type", "application/json")
-                        .end(new JsonObject()
-                              .put(MESSAGE, SUCCESS)
-                              .put(RESULT, result)
-                              .encodePrettily());
+//                      context.response().setStatusCode(200)
+//                        .putHeader("Content-Type", "application/json")
+//                        .end(new JsonObject()
+//                              .put(MESSAGE, SUCCESS)
+//                              .put(RESULT, result)
+//                              .encodePrettily());
+                    ApiUtils.sendSuccess(context,200,"Credential profiles", result);
                   }
                   else
                   {
@@ -297,12 +302,14 @@ public class Credential
 
                       if (!result.isEmpty())
                       {
-                          context.response().setStatusCode(200)
-                            .putHeader("Content-Type", "application/json")
-                            .end(new JsonObject()
-                              .put(MESSAGE, SUCCESS)
-                              .put(RESULT, result)
-                              .encodePrettily());
+//                          context.response().setStatusCode(200)
+//                            .putHeader("Content-Type", "application/json")
+//                            .end(new JsonObject()
+//                              .put(MESSAGE, SUCCESS)
+//                              .put(RESULT, result)
+//                              .encodePrettily());
+
+                        ApiUtils.sendSuccess(context, 200, "Credential profile for current Id",result);
                       }
                       else
                       {
@@ -358,13 +365,15 @@ public class Credential
 
                       if (!result.isEmpty())
                       {
-                          context.response()
-                            .setStatusCode(200)
-                            .putHeader("Content-Type", "application/json")
-                            .end(new JsonObject()
-                              .put(MESSAGE, SUCCESS)
-                              .put(ID, result.getJsonObject(0).getLong(ID))
-                              .encodePrettily());
+//                          context.response()
+//                            .setStatusCode(200)
+//                            .putHeader("Content-Type", "application/json")
+//                            .end(new JsonObject()
+//                              .put(MESSAGE, SUCCESS)
+//                              .put(ID, result.getJsonObject(0).getLong(ID))
+//                              .encodePrettily());
+
+                          ApiUtils.sendSuccess(context, 200,"deleted credential profile", result);
                       }
                       else
                       {

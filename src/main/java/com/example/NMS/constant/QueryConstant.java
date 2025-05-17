@@ -15,7 +15,7 @@ public class QueryConstant
       "    system_type = COALESCE($2, system_type),\n" +
       "    cred_data = COALESCE($3, cred_data)\n" +
       "WHERE id = $4\n" +
-      "RETURNING id";
+      "RETURNING *";
 
   public static final String DELETE_CREDENTIAL = "DELETE FROM credential_profile WHERE id = $1 returning id";
 

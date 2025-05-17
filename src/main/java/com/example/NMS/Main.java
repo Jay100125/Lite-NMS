@@ -26,13 +26,13 @@ public class Main
 
         vertx.deployVerticle(new Server())
 
-            .compose(res -> vertx.deployVerticle(Database.class.getName()))
+            .compose(response -> vertx.deployVerticle(Database.class.getName()))
 
-            .compose(res -> vertx.deployVerticle(Discovery.class.getName()))
+            .compose(response -> vertx.deployVerticle(Discovery.class.getName()))
 
-            .compose(res -> vertx.deployVerticle(Scheduler.class.getName()))
+            .compose(response -> vertx.deployVerticle(Scheduler.class.getName()))
 
-            .compose(res -> vertx.deployVerticle(Polling.class.getName()))
+            .compose(response -> vertx.deployVerticle(Polling.class.getName()))
 
             .onComplete(handler -> {
 

@@ -51,6 +51,7 @@ public class Auth
         {
             var body = context.body().asJsonObject();
 
+            // validating the request body
             if (body == null)
             {
                 ApiUtils.sendError(context, 400, "Missing request body");
@@ -91,13 +92,15 @@ public class Auth
 
                           LOGGER.info("User registered: {} with ID: {}", username, userId);
 
-                          context.response()
-                            .setStatusCode(201)
-                            .putHeader("Content-Type", "application/json")
-                            .end(new JsonObject()
-                              .put(MESSAGE, SUCCESS)
-                              .put("user_id", userId)
-                              .encodePrettily());
+//                          context.response()
+//                            .setStatusCode(201)
+//                            .putHeader("Content-Type", "application/json")
+//                            .end(new JsonObject()
+//                              .put(MESSAGE, SUCCESS)
+//                              .put("user_id", userId)
+//                              .encodePrettily());
+
+                        ApiUtils.sendSuccess(context,201, "user registered successfully", result);
                       }
                       else
                       {
@@ -133,17 +136,17 @@ public class Auth
   /**
    * Handles user login by verifying credentials and issuing a JWT token upon successful authentication.
    *
-   * @param ctx The routing context containing the HTTP request.
+   * @param context The routing context containing the HTTP request.
    */
-    private void login(RoutingContext ctx)
+    private void login(RoutingContext context)
     {
         try
         {
-            var body = ctx.body().asJsonObject();
+            var body = context.body().asJsonObject();
 
             if (body == null)
             {
-                ApiUtils.sendError(ctx, 400, "Missing request body");
+                ApiUtils.sendError(context, 400, "Missing request body");
 
                 return;
             }
@@ -154,7 +157,7 @@ public class Auth
 
             if (username == null || username.trim().isEmpty() || password == null || password.isEmpty())
             {
-                ApiUtils.sendError(ctx, 400, "Username and password are required");
+                ApiUtils.sendError(context, 400, "Username and password are required");
 
                 return;
             }
@@ -194,26 +197,29 @@ public class Auth
 
                               LOGGER.info("User logged in: {}", username);
 
-                              ctx.response()
-                                .setStatusCode(200)
-                                .putHeader("Content-Type", "application/json")
-                                .end(new JsonObject()
-                                  .put(MESSAGE, SUCCESS)
-                                  .put("token", token)
-                                  .encodePrettily());
+//                              context.response()
+//                                .setStatusCode(200)
+//                                .putHeader("Content-Type", "application/json")
+//                                .end(new JsonObject()
+//                                  .put(MESSAGE, SUCCESS)
+//                                  .put("token", token)
+//                                  .encodePrettily());
+
+                            ApiUtils.sendSuccess(context,200,"Login successful", new JsonArray().add(token));
+
                           }
                           else
                           {
                               LOGGER.warn("Failed login attempt for username: {} (Incorrect password)", username);
 
-                              ApiUtils.sendError(ctx, 401, "Invalid username or password");
+                              ApiUtils.sendError(context, 401, "Invalid username or password");
                           }
                       }
                       else
                       {
                           LOGGER.warn("Failed login attempt for username: {} (User not found or DB issue reported by QueryProcessor)", username);
 
-                          ApiUtils.sendError(ctx, 401, "Invalid username or password");
+                          ApiUtils.sendError(context, 401, "Invalid username or password");
                       }
                   }
                   else
@@ -222,7 +228,7 @@ public class Auth
 
                       LOGGER.error("User login query execution failed for username {}: {}", username, error.getMessage());
 
-                      ApiUtils.sendError(ctx, 500, "Login failed due to a server error: " + error.getMessage());
+                      ApiUtils.sendError(context, 500, "Login failed due to a server error: " + error.getMessage());
                   }
               });
         }
@@ -230,7 +236,7 @@ public class Auth
         {
             LOGGER.error("Unexpected error during login: {}", exception.getMessage());
 
-            ApiUtils.sendError(ctx, 500, "An unexpected error occurred during login.");
+            ApiUtils.sendError(context, 500, "An unexpected error occurred during login.");
         }
     }
 }

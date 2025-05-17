@@ -6,6 +6,8 @@ import io.vertx.ext.web.RoutingContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static com.example.NMS.constant.Constant.*;
+
 public class ApiUtils
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(ApiUtils.class);
@@ -18,8 +20,22 @@ public class ApiUtils
           .setStatusCode(statusCode)
           .putHeader("Content-Type", "application/json")
           .end(new JsonObject()
-            .put("status", "failed")
+            .put(MESSAGE, "failed")
             .put("error", errorMessage)
+            .encode());
+    }
+
+
+    public static void sendSuccess(RoutingContext context, int statusCode, String message,  JsonArray result)
+    {
+        context.response()
+          .setStatusCode(statusCode)
+          .putHeader("Content-Type", "application/json")
+          .end(new JsonObject()
+            .put("Status Code", statusCode)
+            .put("Message", message)
+            .put(MESSAGE, SUCCESS)
+            .put(RESULT, result)
             .encode());
     }
 

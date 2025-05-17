@@ -99,23 +99,24 @@ public class Discovery
                   .put(QUERY, QueryConstant.INSERT_DISCOVERY_CREDENTIAL)
                   .put(BATCHPARAMS, batchParams);
 
-                return executeBatchQuery(batchQuery)
-                  .map(discoveryId);
+                return executeBatchQuery(batchQuery).map(discoveryId);
 
              })
             .onComplete(queryResult ->
             {
                 if (queryResult.succeeded())
                 {
-                    var discoveryId = queryResult.result();
+                    var result = queryResult.result();
 
-                    context.response()
-                      .setStatusCode(201)
-                      .putHeader("Content-Type", "application/json")
-                      .end(new JsonObject()
-                        .put(MESSAGE, SUCCESS)
-                        .put(ID, discoveryId)
-                        .encodePrettily());
+//                    context.response()
+//                      .setStatusCode(201)
+//                      .putHeader("Content-Type", "application/json")
+//                      .end(new JsonObject()
+//                        .put(MESSAGE, SUCCESS)
+//                        .put(ID, discoveryId)
+//                        .encodePrettily());
+
+                  ApiUtils.sendSuccess(context, 201, "discovery profile created",new JsonArray().add(result));
                 }
                 else
                 {
@@ -161,13 +162,15 @@ public class Discovery
 
                       if (!result.isEmpty())
                       {
-                          context.response()
-                            .setStatusCode(200)
-                            .putHeader("Content-Type", "application/json")
-                            .end(new JsonObject()
-                              .put(MESSAGE, SUCCESS)
-                              .put(RESULT, result)
-                              .encodePrettily());
+//                          context.response()
+//                            .setStatusCode(200)
+//                            .putHeader("Content-Type", "application/json")
+//                            .end(new JsonObject()
+//                              .put(MESSAGE, SUCCESS)
+//                              .put(RESULT, result)
+//                              .encodePrettily());
+
+                        ApiUtils.sendSuccess(context, 200, "Discovery profile for current Id",result);
                       }
                       else
                       {
@@ -211,13 +214,15 @@ public class Discovery
 
                   if (!result.isEmpty())
                   {
-                      context.response()
-                        .setStatusCode(200)
-                        .putHeader("Content-Type", "application/json")
-                        .end(new JsonObject()
-                          .put(MESSAGE, SUCCESS)
-                          .put(RESULT, result)
-                          .encodePrettily());
+//                      context.response()
+//                        .setStatusCode(200)
+//                        .putHeader("Content-Type", "application/json")
+//                        .end(new JsonObject()
+//                          .put(MESSAGE, SUCCESS)
+//                          .put(RESULT, result)
+//                          .encodePrettily());
+
+                    ApiUtils.sendSuccess(context, 200, "Discovery profiles",result);
                   }
                   else
                   {
@@ -266,10 +271,12 @@ public class Discovery
 
                       if (!result.isEmpty())
                       {
-                          context.response()
-                            .setStatusCode(200)
-                            .putHeader("Content-Type", "application/json")
-                            .end(result.encodePrettily());
+//                          context.response()
+//                            .setStatusCode(200)
+//                            .putHeader("Content-Type", "application/json")
+//                            .end(result.encodePrettily());
+
+                        ApiUtils.sendSuccess(context, 200,"Discovery profile deleted successfully" ,result);
                       }
                       else
                       {
@@ -370,19 +377,20 @@ public class Discovery
 
                 return executeQuery(updateQuery)
                   .compose(v -> executeQuery(deleteQuery))
-                  .compose(v -> executeBatchQuery(batchQuery));
+                  .compose(v -> executeBatchQuery(batchQuery)).map(id);
             })
             .onComplete(queryResult ->
             {
                 if(queryResult.succeeded())
                 {
-                    context.response()
-                      .setStatusCode(200)
-                      .putHeader("Content-Type", "application/json")
-                      .end(new JsonObject()
-                        .put(MESSAGE, SUCCESS)
-                        .put(ID, id)
-                        .encodePrettily());
+//                    context.response()
+//                      .setStatusCode(200)
+//                      .putHeader("Content-Type", "application/json")
+//                      .end(new JsonObject()
+//                        .put(MESSAGE, SUCCESS)
+//                        .put(ID, id)
+//                        .encodePrettily());
+                  ApiUtils.sendSuccess(context, 200, "Discovery Profile Updated Successfully",new JsonArray().add(id));
                 }
                 else
                 {
@@ -446,13 +454,15 @@ public class Discovery
 
                     vertx.eventBus().send(DISCOVERY_RUN,request);
 
-                    context.response()
-                      .setStatusCode(202)
-                      .putHeader("Content-Type", "application/json")
-                      .end(new JsonObject()
-                        .put(MESSAGE, "Discovery is currently being processed")
-                        .put(ID, id)
-                        .encodePrettily());
+//                    context.response()
+//                      .setStatusCode(202)
+//                      .putHeader("Content-Type", "application/json")
+//                      .end(new JsonObject()
+//                        .put(MESSAGE, "Discovery is currently being processed")
+//                        .put(ID, id)
+//                        .encodePrettily());
+
+                  ApiUtils.sendSuccess(context, 200, "Discovery Profile is currently running", new JsonArray());
                 }
                 else
                 {
@@ -506,13 +516,15 @@ public class Discovery
                       }
                       else
                       {
-                          context.response()
-                            .setStatusCode(200)
-                            .putHeader("Content-Type", "application/json")
-                            .end(new JsonObject()
-                              .put(MESSAGE, SUCCESS)
-                              .put(RESULT, result)
-                              .encodePrettily());
+//                          context.response()
+//                            .setStatusCode(200)
+//                            .putHeader("Content-Type", "application/json")
+//                            .end(new JsonObject()
+//                              .put(MESSAGE, SUCCESS)
+//                              .put(RESULT, result)
+//                              .encodePrettily());
+
+                        ApiUtils.sendSuccess(context, 200, "Discovery result for current profile",result);
                       }
                   }
                   else

@@ -87,14 +87,16 @@ public class Provision
                   {
                       var result = queryResult.result();
 
-                      context.response()
-                        .setStatusCode(201)
-                        .putHeader("Content-Type", "application/json")
-                        .end(new JsonObject()
-                          .put(MESSAGE, SUCCESS)
-                          .put("Provision_created", result.getJsonArray("insertedRecords"))
-                          .put("invalid_ips", result.getJsonArray("invalidIps"))
-                          .encodePrettily());
+//                      context.response()
+//                        .setStatusCode(201)
+//                        .putHeader("Content-Type", "application/json")
+//                        .end(new JsonObject()
+//                          .put(MESSAGE, SUCCESS)
+//                          .put("Provision_created", result.getJsonArray("insertedRecords"))
+//                          .put("invalid_ips", result.getJsonArray("invalidIps"))
+//                          .encodePrettily());
+
+                    ApiUtils.sendSuccess(context,201, "Provision created",new JsonArray().add(result));
                   }
                   else
                   {
@@ -140,13 +142,15 @@ public class Provision
                           return;
                       }
 
-                      context.response()
-                        .setStatusCode(200)
-                        .putHeader("Content-Type", "application/json")
-                        .end(new JsonObject()
-                          .put(MESSAGE, SUCCESS)
-                          .put(RESULT, result)
-                          .encodePrettily());
+//                      context.response()
+//                        .setStatusCode(200)
+//                        .putHeader("Content-Type", "application/json")
+//                        .end(new JsonObject()
+//                          .put(MESSAGE, SUCCESS)
+//                          .put(RESULT, result)
+//                          .encodePrettily());
+
+                    ApiUtils.sendSuccess(context,200, "all provision",result);
                   }
                   else
                   {
@@ -190,9 +194,8 @@ public class Provision
                       {
                           MetricCache.removeMetricJobsByProvisioningJobId(id);
 
-                          context.response()
-                            .setStatusCode(200)
-                            .end(result.encodePrettily());
+                        ApiUtils.sendSuccess(context,200, "Provision deleted successfully" ,result);
+
                       }
                       else
                       {
@@ -346,13 +349,14 @@ public class Provision
               {
                   if(result.succeeded())
                   {
-                      context.response()
-                        .setStatusCode(200)
-                        .putHeader("Content-Type", "application/json")
-                        .end(new JsonObject()
-                          .put(MESSAGE, SUCCESS)
-                          .put(PROVISIONING_JOB_ID, id)
-                          .encodePrettily());
+//                      context.response()
+//                        .setStatusCode(200)
+//                        .putHeader("Content-Type", "application/json")
+//                        .end(new JsonObject()
+//                          .put(MESSAGE, SUCCESS)
+//                          .put(PROVISIONING_JOB_ID, id)
+//                          .encodePrettily());
+                    ApiUtils.sendSuccess(context, 200, "Updated metrics successfully", new JsonArray().add(id));
                   }
                   else
                   {
@@ -385,13 +389,8 @@ public class Provision
                   {
                       var result = queryResult.result();
 
-                      context.response()
-                        .setStatusCode(200)
-                        .putHeader("Content-Type", "application/json")
-                        .end(new JsonObject()
-                          .put(MESSAGE, SUCCESS)
-                          .put(RESULT, result)
-                          .encodePrettily());
+                    ApiUtils.sendSuccess(context,200,"Result of polling data" ,result);
+
                   }
                   else
                   {
