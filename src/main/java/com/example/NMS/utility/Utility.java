@@ -16,18 +16,38 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Utility class for network-related operations in Lite NMS.
+ * Provides methods for validating IPv4 addresses, resolving IP ranges and CIDR notations,
+ * checking IP reachability and port availability, and executing SSH plugins for network discovery.
+ */
 public class Utility
 {
     public static final Logger LOGGER = LoggerFactory.getLogger(Utility.class.getName());
 
+    // Regular expression for validating IPv4 addresses
     private static final String IPv4_PATTERN = "^((25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]?\\d)(\\.|$)){4}$";
 
+  /**
+   * Validates whether the given string is a valid IPv4 address.
+   *
+   * @param ip The IP address to validate.
+   * @return True if the IP address is valid, false otherwise.
+   */
     public static boolean isValidIPv4(String ip)
     {
       return ip != null && ip.matches(IPv4_PATTERN);
     }
 
-    /// Resolve IP addresses from a given input string.
+  /**
+   * Resolves IP addresses from a given input string.
+   * Supports single IP addresses, IP ranges (e.g., "10.20.40.10 - 10.20.40.123"),
+   * and CIDR notations (e.g., "10.20.40.0/16").
+   *
+   * @param ipInput The input string containing a single IP, IP range, or CIDR.
+   * @return A list of resolved IP addresses.
+   * @throws Exception If the input format is invalid or resolution fails.
+   */
     public static List<String> resolveIpAddresses(String ipInput) throws Exception
     {
         var ipList = new ArrayList<String>();
@@ -108,6 +128,12 @@ public class Utility
       return ipList;
     }
 
+  /**
+   * Converts an IP address to a long integer for range calculations.
+   *
+   * @param ip The InetAddress object representing the IP address.
+   * @return The long integer representation of the IP address.
+   */
     private static long ipToLong(InetAddress ip)
     {
         byte[] octets = ip.getAddress();
@@ -123,6 +149,12 @@ public class Utility
         return result;
     }
 
+  /**
+   * Converts a long integer to an IP address string.
+   *
+   * @param ip The long integer representing the IP address.
+   * @return The IP address as a string (e.g., "192.168.1.1").
+   */
     private static String longToIp(long ip)
     {
         return String.format("%d.%d.%d.%d",
@@ -132,7 +164,18 @@ public class Utility
           ip & 0xff);
     }
 
-    public static JsonArray checkReachability(List<String> ipList, int port) throws Exception
+
+
+  /**
+   * Checks the reachability of a list of IP addresses and verifies if a specified port is open.
+   * Uses `fping` to check IP reachability and `nc` to check port availability.
+   *
+   * @param ipAddresses The list of IP addresses to check.
+   * @param port        The port to verify for each IP address.
+   * @return A JSON array of results, each containing the IP, reachability status, and port status.
+   * @throws Exception If the reachability check fails due to invalid input or system errors.
+   */
+    public static JsonArray checkReachability(List<String> ipAddresses, int port) throws Exception
     {
         var results = new JsonArray();
 
@@ -150,14 +193,15 @@ public class Utility
             command.add("1");  // 1 attempt
             command.add("-t"); // Timeout
             command.add("1000"); // 1000ms
-            command.addAll(ipList); // Add all IPs
+            command.addAll(ipAddresses); // Add all IPs
 
             var processBuilder = new ProcessBuilder(command);
 
             var process = processBuilder.start();
 
-            LOGGER.info("Ip {} fping command: {}", ipList, String.join(" ", command));
-            // Read alive IPs from stdout
+            LOGGER.info("Ip {} fping command: {}", ipAddresses, String.join(" ", command));
+
+            // Read alive IPs from stdout (fping -a outputs alive hosts directly)
             var reader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
 
             String line;
@@ -174,7 +218,6 @@ public class Utility
             LOGGER.info("fping alive IPs: {}", aliveIps);
 
             // Log stderr for debugging
-
             var stderrReader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
 
             var stderr = new StringBuilder();
@@ -202,7 +245,7 @@ public class Utility
         }
 
         // Check port for each IP
-        for (var ip : ipList)
+        for (var ip : ipAddresses)
         {
             var isReachable = aliveIps.contains(ip);
 
@@ -212,7 +255,7 @@ public class Utility
             {
                 try
                 {
-                  // Use nc to check port
+                    // Use nc to check port
                     var pb = new ProcessBuilder("nc", "-z", "-w", "1", ip, String.valueOf(port));
 
                     var process = pb.start();
@@ -245,6 +288,14 @@ public class Utility
         return results;
     }
 
+
+  /**
+   * Executes an SSH plugin with the provided JSON configuration and returns the results.
+   * The plugin receives Base64-encoded JSON input via stdin and outputs Base64-encoded JSON results via stdout.
+   *
+   * @param pluginJson The JSON object containing the plugin configuration.
+   * @return A JSON array of results from the plugin, or error results if execution fails.
+   */
     public static JsonArray spawnPlugin(JsonObject pluginJson)
     {
         var results = new JsonArray();
@@ -264,7 +315,7 @@ public class Utility
 
             process = pb.start();
 
-            // Write Base64-encoded JSON to stdin
+             // Write Base64-encoded JSON to stdin
             stdOutput = new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8);
 
             String encodedInput = Base64.getEncoder().encodeToString(pluginJson.encode().getBytes(StandardCharsets.UTF_8));
@@ -341,6 +392,7 @@ public class Utility
         }
         finally
         {
+            // Clean up resources
             try
             {
                 if (stdInput != null)
@@ -359,7 +411,7 @@ public class Utility
                 {
                     process.destroy();
 
-                    process.waitFor(6, java.util.concurrent.TimeUnit.SECONDS);
+                    process.waitFor(5, java.util.concurrent.TimeUnit.SECONDS);
                 }
             }
             catch (Exception e)

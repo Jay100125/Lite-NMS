@@ -1,7 +1,6 @@
 
 package com.example.NMS.polling;
 
-import com.example.NMS.cache.MetricCache;
 import com.example.NMS.constant.QueryConstant;
 import com.example.NMS.service.QueryProcessor;
 import com.example.NMS.utility.Utility;
@@ -19,10 +18,22 @@ import java.util.stream.Collectors;
 
 import static com.example.NMS.constant.Constant.*;
 
+/**
+ * Vert.x verticle for polling metric jobs in Lite NMS.
+ * Consumes metric jobs from the event bus, checks device reachability, executes an SSH plugin to collect metrics,
+ * and stores the results in the database.
+ */
 public class Polling extends AbstractVerticle
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(Polling.class);
 
+
+    /**
+     * Starts the polling verticle.
+     * Sets up an event bus consumer to receive metric jobs for polling and signals successful deployment.
+     *
+     * @param startPromise The promise to complete or fail based on startup success.
+     */
      @Override
     public void start(Promise<Void> startPromise)
     {
@@ -37,7 +48,7 @@ public class Polling extends AbstractVerticle
                 {
                     LOGGER.info("Received {} jobs for polling", jobs.size());
 
-
+                    // Convert JSON array to list of JSON objects
                     var jobsToPoll = jobs.stream()
                       .map(obj -> (JsonObject) obj)
                       .collect(Collectors.toList());

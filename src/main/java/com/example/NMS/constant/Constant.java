@@ -30,6 +30,10 @@ public class Constant {
 
   public static final String SUCCESS = "success";
 
+  public static final String FAILURE = "failure";
+
+  public static final String STATUS_CODE = "status.code";
+
   public static final String USERNAME = "username";
 
   public static final String RESULT = "result";
@@ -51,6 +55,8 @@ public class Constant {
   public static final String BATCHPARAMS = "batchParams";
 
   public static final String MESSAGE = "message";
+
+  public static final String STATUS = "status";
 
   public static final String ERROR = "error";
 

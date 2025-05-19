@@ -6,16 +6,15 @@ public class QueryConstant
 
   public static final String GET_CREDENTIAL_BY_ID = "SELECT * FROM credential_profile WHERE id = $1";
 
-  public static final String GET_CREDENTIAL_DATA = "SELECT cred_data FROM credential_profile WHERE id = $1";
-
   public static final String INSERT_CREDENTIAL = "INSERT INTO credential_profile (credential_name, system_type, cred_data) VALUES ($1, $2, $3) returning id";
 
-    public static final String UPDATE_CREDENTIAL = "UPDATE credential_profile\n" +
-      "SET credential_name = COALESCE($1, credential_name),\n" +
-      "    system_type = COALESCE($2, system_type),\n" +
-      "    cred_data = COALESCE($3, cred_data)\n" +
-      "WHERE id = $4\n" +
-      "RETURNING *";
+    public static final String UPDATE_CREDENTIAL = """
+      UPDATE credential_profile
+      SET credential_name = COALESCE($1, credential_name),
+          system_type = COALESCE($2, system_type),
+          cred_data = COALESCE($3, cred_data)
+      WHERE id = $4
+      RETURNING *""";
 
   public static final String DELETE_CREDENTIAL = "DELETE FROM credential_profile WHERE id = $1 returning id";
 
@@ -32,12 +31,6 @@ public class QueryConstant
 
   public static final String DELETE_DISCOVERY = "DELETE FROM discovery_profiles WHERE id = $1 RETURNING id";
 
-  public static final String RUN_DISCOVERY = "SELECT dp.ip, dp.port, dcm.credential_profile_id AS cpid, cp.cred_data \n" +
-    "FROM discovery_profiles dp \n" +
-    "JOIN discovery_credential_mapping dcm ON dp.id = dcm.discovery_id \n" +
-    "JOIN credential_profile cp ON dcm.credential_profile_id = cp.id \n" +
-    "WHERE dp.id = $1";
-
   public static final String INSERT_DISCOVERY_CREDENTIAL = "INSERT INTO discovery_credential_mapping (discovery_id, credential_profile_id) VALUES ($1, $2) RETURNING discovery_id as id";
 
   public static final String DELETE_DISCOVERY_CREDENTIALS = "DELETE FROM discovery_credential_mapping WHERE discovery_id = $1";
@@ -53,14 +46,6 @@ public class QueryConstant
     "ON CONFLICT (discovery_id, ip) DO UPDATE " +
     "SET port = EXCLUDED.port, result = EXCLUDED.result, msg = EXCLUDED.msg, credential_profile_id = EXCLUDED.credential_profile_id " +
     "RETURNING id";
-
-
-  public static final String INSERT_PROVISIONING_JOB = "INSERT INTO provisioning_jobs (credential_profile_id, ip, port) " +
-    "VALUES ($1, $2, $3) RETURNING id";
-
-  public static final String INSERT_DEFAULT_METRICS =
-    "INSERT INTO metrics (provisioning_job_id, name, polling_interval, is_enabled) " +
-      "VALUES ($1, $2, $3, $4) RETURNING metric_id as id";
 
   public static final String UPSERT_METRICS =
     "INSERT INTO metrics (provisioning_job_id, name, polling_interval, is_enabled) " +
@@ -116,7 +101,7 @@ public class QueryConstant
   public static final String GET_DISCOVERY_RESULTS = "SELECT * FROM discovery_result WHERE discovery_id = $1";
 
   public static final String INSERT_PROVISIONING_AND_METRICS = """
-       WITH input_ips AS (
+      WITH input_ips AS (
             SELECT unnest($2::varchar[]) AS ip
         ),
         discovery_validation AS (
@@ -207,5 +192,31 @@ public class QueryConstant
                 FROM invalid_ips iv),
                 '[]'::json
             ) AS invalid_ips
-        """;
+      """;
+
+    public static final String GET_PROVISIONING_JOB_DETAILS = """
+            SELECT
+                pj.ip,
+                pj.port,
+                pj.credential_profile_id,
+                cp.cred_data AS cred_data
+            FROM provisioning_jobs pj
+            LEFT JOIN credential_profile cp ON pj.credential_profile_id = cp.id
+            WHERE pj.id = $1
+            """;
+      public static final String GET_ACTIVE_METRIC_JOBS = """
+            SELECT
+                m.metric_id,
+                m.provisioning_job_id,
+                m.name AS metric_name,
+                m.polling_interval,
+                m.is_enabled,
+                pj.ip,
+                pj.port,
+                cp.cred_data
+            FROM metrics m
+            JOIN provisioning_jobs pj ON m.provisioning_job_id = pj.id
+            JOIN credential_profile cp ON pj.credential_profile_id = cp.id
+            WHERE m.is_enabled = true
+            """;
 }

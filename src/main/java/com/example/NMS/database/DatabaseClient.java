@@ -55,7 +55,6 @@ public class DatabaseClient
 
   public SqlClient getClient()
   {
-
     return client;
   }
 

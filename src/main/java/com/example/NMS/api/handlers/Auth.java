@@ -16,6 +16,8 @@ import static com.example.NMS.service.QueryProcessor.executeQuery;
 
 /**
  * Handles user authentication for Lite NMS, including registration and login with JWT token generation.
+ * This class provides endpoints for user registration and login, ensuring secure password storage
+ * using BCrypt and generating JWT tokens for authenticated users.
  */
 public class Auth
 {
@@ -42,13 +44,17 @@ public class Auth
 
     /**
      * Handles user registration by validating input, hashing the password, and storing the user in the database.
+     * Ensures the username is unique and the password meets security requirements (minimum 8 characters).
+     * Responds with a success message and user details on successful registration, or an error if validation fails
+     * or the username is already taken.
      *
-     * @param context The routing context containing the HTTP request.
+     * @param context The routing context containing the HTTP request with user registration data.
      */
     private void register(RoutingContext context)
     {
         try
         {
+            // Extract JSON body from the request
             var body = context.body().asJsonObject();
 
             // validating the request body
@@ -59,10 +65,12 @@ public class Auth
                 return;
             }
 
+            // Extract username and password from the request body
             var username = body.getString(USERNAME);
 
             var password = body.getString(PASSWORD);
 
+            // Validate username and password
             if (username == null || username.trim().isEmpty() || password == null || password.length() < 8)
             {
                 ApiUtils.sendError(context, 400, "Invalid username or password (minimum 8 characters for password)");
@@ -78,56 +86,50 @@ public class Auth
               .put(QUERY, QueryConstant.REGISTER_USER)
               .put(PARAMS, new JsonArray().add(username).add(hashedPassword));
 
-            // register the user
+            // Execute the registration query
             executeQuery(query)
-              .onComplete(queryResult ->
-              {
-                  if (queryResult.succeeded())
-                  {
-                      var result = queryResult.result();
-
-                      if (result != null && !result.isEmpty())
-                      {
-                          var userId = result.getJsonObject(0).getLong(ID);
-
-                          LOGGER.info("User registered: {} with ID: {}", username, userId);
-
-//                          context.response()
-//                            .setStatusCode(201)
-//                            .putHeader("Content-Type", "application/json")
-//                            .end(new JsonObject()
-//                              .put(MESSAGE, SUCCESS)
-//                              .put("user_id", userId)
-//                              .encodePrettily());
-
-                        ApiUtils.sendSuccess(context,201, "user registered successfully", result);
-                      }
-                      else
-                      {
-                          ApiUtils.sendError(context, 500, "Failed to register user: No ID returned from database.");
-                      }
-                  }
-                else
+                .onComplete(queryResult ->
                 {
-                    var error = queryResult.cause();
-
-                    // if username is already taken
-                    if(error.getMessage().contains("users_username_key"))
+                    if (queryResult.succeeded())
                     {
-                        ApiUtils.sendError(context, 409, "Username already exists");
+                        var result = queryResult.result();
+
+                        if (result != null && !result.isEmpty())
+                        {
+                            var userId = result.getJsonObject(0).getLong(ID);
+
+                            LOGGER.info("User registered successfully: username={}, userId={}", username, userId);
+
+                            ApiUtils.sendSuccess(context,201, "user registered successfully", result);
+                        }
+                        else
+                        {
+                            ApiUtils.sendError(context, 500, "Failed to register user: No ID returned from database.");
+                        }
                     }
                     else
                     {
-                        LOGGER.error("User registration failed for {}. DB Error: {}", username, error.getMessage());
+                        var error = queryResult.cause();
 
-                        ApiUtils.sendError(context, 500, "Failed to register user: " + error.getMessage());
+                        // Handle case where username is already taken
+                        if(error.getMessage().contains("users_username_key"))
+                        {
+                            LOGGER.warn("Registration failed for username={}: Username already exists", username);
+
+                            ApiUtils.sendError(context, 409, "Username already exists");
+                        }
+                        else
+                        {
+                            LOGGER.error("User registration failed for {}. Database Error: {}", username, error.getMessage());
+
+                            ApiUtils.sendError(context, 500, "Failed to register user: " + error.getMessage());
+                        }
                     }
-                }
-              });
+                });
         }
-        catch (Exception e)
+        catch (Exception exception)
         {
-            LOGGER.error("Unexpected error during registration: {}", e.getMessage(), e);
+            LOGGER.error("Unexpected error during registration: {}", exception.getMessage(), exception);
 
             ApiUtils.sendError(context, 500, "An unexpected error occurred during registration.");
         }
@@ -135,13 +137,16 @@ public class Auth
 
   /**
    * Handles user login by verifying credentials and issuing a JWT token upon successful authentication.
+   * Validates the username and password, checks them against the stored credentials in the database,
+   * and generates a JWT token with a 24-hour expiration if authentication is successful.
    *
-   * @param context The routing context containing the HTTP request.
+   * @param context The routing context containing the HTTP request with login credentials.
    */
     private void login(RoutingContext context)
     {
         try
         {
+            // Extract JSON body from the request
             var body = context.body().asJsonObject();
 
             if (body == null)
@@ -167,70 +172,65 @@ public class Auth
               .put(QUERY, QueryConstant.GET_USER_BY_USERNAME)
               .put(PARAMS, new JsonArray().add(username));
 
+            // Execute the user lookup query
             executeQuery(query)
-              .onComplete(queryResult ->
-              {
-                  if (queryResult.succeeded())
-                  {
-                      var result = queryResult.result();
+                .onComplete(queryResult ->
+                {
+                    if (queryResult.succeeded())
+                    {
+                        var result = queryResult.result();
 
-                      if (result != null && !result.isEmpty())
-                      {
-                        // get the user from the result
-                          var user = result.getJsonObject(0);
+                        if (result != null && !result.isEmpty())
+                        {
+                          // get the user from the result
+                            var user = result.getJsonObject(0);
 
-                          var storedHash = user.getString(PASSWORD);
+                            var storedHash = user.getString(PASSWORD);
 
-                          // Verify password against stored hash.
-                          if (BCrypt.checkpw(password, storedHash))
-                          {
-                            // Set token expiration to 24 hours
-                              var currentTimeSeconds = System.currentTimeMillis() / 1000;
+                            // Verify password against stored hash.
+                            if (BCrypt.checkpw(password, storedHash))
+                            {
+                              // Set token expiration to 24 hours
+                                var currentTimeSeconds = System.currentTimeMillis() / 1000;
 
-                              var expiryTimeSeconds = currentTimeSeconds + (24 * 60 * 60); // 24 hours
+                                var expiryTimeSeconds = currentTimeSeconds + (24 * 60 * 60); // 24 hours
 
-                              var claims = new JsonObject()
-                                .put("sub", username)
-                                .put("exp", expiryTimeSeconds);
+                                // Create JWT claims (Token)
+                                var claims = new JsonObject()
+                                  .put("sub", username)
+                                  .put("exp", expiryTimeSeconds);
 
-                              var token = jwtAuth.generateToken(claims);
+                                var token = jwtAuth.generateToken(claims);
 
-                              LOGGER.info("User logged in: {}", username);
+                                LOGGER.info("User logged in: {}", username);
 
-//                              context.response()
-//                                .setStatusCode(200)
-//                                .putHeader("Content-Type", "application/json")
-//                                .end(new JsonObject()
-//                                  .put(MESSAGE, SUCCESS)
-//                                  .put("token", token)
-//                                  .encodePrettily());
+                                // sending the response
+                                ApiUtils.sendSuccess(context,200,"Login successful", new JsonArray().add(token));
 
-                            ApiUtils.sendSuccess(context,200,"Login successful", new JsonArray().add(token));
+                            }
+                            else
+                            {
+                                LOGGER.warn("Failed login attempt for username: {} (Incorrect password)", username);
 
-                          }
-                          else
-                          {
-                              LOGGER.warn("Failed login attempt for username: {} (Incorrect password)", username);
+                                ApiUtils.sendError(context, 401, "Invalid username or password");
+                            }
+                        }
+                        else
+                        {
+                            LOGGER.warn("Failed login attempt for username: {} (User not found)", username);
 
-                              ApiUtils.sendError(context, 401, "Invalid username or password");
-                          }
-                      }
-                      else
-                      {
-                          LOGGER.warn("Failed login attempt for username: {} (User not found or DB issue reported by QueryProcessor)", username);
+                            ApiUtils.sendError(context, 401, "Invalid username or password");
+                        }
+                    }
+                    else
+                    {
+                        var error = queryResult.cause();
 
-                          ApiUtils.sendError(context, 401, "Invalid username or password");
-                      }
-                  }
-                  else
-                  {
-                      var error = queryResult.cause();
+                        LOGGER.error("User login query execution failed for username {}: {}", username, error.getMessage());
 
-                      LOGGER.error("User login query execution failed for username {}: {}", username, error.getMessage());
-
-                      ApiUtils.sendError(context, 500, "Login failed due to a server error: " + error.getMessage());
-                  }
-              });
+                        ApiUtils.sendError(context, 500, "Login failed due to a server error: " + error.getMessage());
+                    }
+                });
         }
         catch (Exception exception)
         {

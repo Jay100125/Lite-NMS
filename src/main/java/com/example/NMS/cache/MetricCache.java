@@ -10,21 +10,30 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 import static com.example.NMS.constant.Constant.*;
+import static com.example.NMS.constant.QueryConstant.GET_ACTIVE_METRIC_JOBS;
 
+/**
+ * In-memory cache for managing metric jobs in Lite NMS.
+ * Stores metric job details (e.g., metric ID, provisioning job ID, IP, port, credentials) in a thread-safe
+ * ConcurrentHashMap and handles initialization, updates, and polling intervals for metric collection.
+ */
 public class MetricCache
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(MetricCache.class);
 
-    // Static cache of metric jobs: metric_id -> JsonObject
+    // Thread-safe cache of metric jobs: metric_id -> JsonObject
     private static final ConcurrentHashMap<Long, JsonObject> metricJobCache = new ConcurrentHashMap<>();
 
     // Flag to ensure cache is initialized only once
     private static boolean isCacheInitialized = false;
 
-  // Initialize cache by querying the database
+  /**
+   * Initializes the cache by querying the database for enabled metric jobs.
+   * Populates the cache with metric details, including IP, port, and credentials, and sets the initialization flag.
+   * Skips initialization if the cache is already populated.
+   */
     public static void init()
     {
         if (isCacheInitialized)
@@ -34,14 +43,8 @@ public class MetricCache
             return;
         }
 
-        var query = "SELECT m.metric_id, m.provisioning_job_id, m.name AS metric_name, m.polling_interval, " +
-          "m.is_enabled, pj.ip, pj.port, cp.cred_data " +
-          "FROM metrics m " +
-          "JOIN provisioning_jobs pj ON m.provisioning_job_id = pj.id " +
-          "JOIN credential_profile cp ON pj.credential_profile_id = cp.id " +
-          "WHERE m.is_enabled = true";
-
-        QueryProcessor.executeQuery(new JsonObject().put(QUERY, query))
+        // Execute the query and populate the cache
+        QueryProcessor.executeQuery(new JsonObject().put(QUERY, GET_ACTIVE_METRIC_JOBS))
           .onComplete(queryResult ->
           {
               if(queryResult.succeeded())
@@ -63,7 +66,13 @@ public class MetricCache
           });
     }
 
-    // Update cache from query results
+  /**
+   * Updates the cache with metric job details from query results.
+   * Each result entry contains metric ID, provisioning job ID, metric name, polling interval,
+   * IP, port, and credential data.
+   *
+   * @param results The JSON array of query results.
+   */
     private static void updateCacheFromQueryResult(JsonArray results)
     {
         results.forEach(entry ->
@@ -88,7 +97,20 @@ public class MetricCache
         });
     }
 
-    // Add a new metric job to the cache
+
+  /**
+   * Adds a new metric job to the cache.
+   * Stores the job details, including metric ID, provisioning job ID, metric name, IP, port,
+   * credentials, and polling interval.
+   *
+   * @param metricId         The unique ID of the metric.
+   * @param provisioningJobId The associated provisioning job ID.
+   * @param metricName       The name of the metric (e.g., "cpu", "memory").
+   * @param pollingInterval  The polling interval in seconds.
+   * @param ip        The IP address of the target device.
+   * @param port             The port for communication.
+   * @param credData         The credential data for authentication.
+   */
     public static void addMetricJob(Long metricId, Long provisioningJobId, String metricName, int pollingInterval, String ip, int port, JsonObject credData)
     {
         var job = new JsonObject()
@@ -106,21 +128,18 @@ public class MetricCache
         LOGGER.info("Added metric job to cache: metric_id={}", metricId);
     }
 
-    // Remove a metric job from the cache
-    public static void removeMetricJob(Long metricId)
-    {
-      metricJobCache.remove(metricId);
 
-      LOGGER.info("Removed metric job from cache: metric_id={}", metricId);
-    }
-
-
+    /**
+     * Removes all metric jobs associated with a given provisioning job ID from the cache.
+     *
+     * @param provisioningJobId The provisioning job ID whose metric jobs should be removed.
+     */
     public static void removeMetricJobsByProvisioningJobId(Long provisioningJobId)
     {
         var removedIds = metricJobCache.entrySet().stream()
           .filter(entry -> provisioningJobId.equals(entry.getValue().getLong(PROVISIONING_JOB_ID)))
           .map(Map.Entry::getKey)
-          .collect(Collectors.toList());
+          .toList();
 
         removedIds.forEach(metricJobCache::remove);
 
@@ -130,7 +149,19 @@ public class MetricCache
         }
     }
 
-    // Update an existing metric job
+    /**
+     * Updates an existing metric job in the cache or removes it if disabled.
+     * Stores updated details, including metric name, IP, port, credentials, and polling interval.
+     *
+     * @param metricId         The unique ID of the metric.
+     * @param provisioningJobId The associated provisioning job ID.
+     * @param metricName       The name of the metric.
+     * @param pollingInterval  The polling interval in seconds.
+     * @param ip        The IP address of the target device.
+     * @param port             The port for communication.
+     * @param credData         The credential data for authentication.
+     * @param isEnabled        Whether the metric is enabled.
+     */
     public static void updateMetricJob(Long metricId, Long provisioningJobId, String metricName, int pollingInterval, String ip, int port, JsonObject credData, Boolean isEnabled)
     {
         var job = new JsonObject()
@@ -157,14 +188,13 @@ public class MetricCache
        LOGGER.info("Updated metric job in cache: metric_id={}", metricId);
     }
 
-    public static Map<Long, JsonObject> getMetricJobsByProvisioningJobId(Long provisioningJobId)
-    {
-        return metricJobCache.entrySet().stream()
-          .filter(entry -> provisioningJobId.equals(entry.getValue().getLong(PROVISIONING_JOB_ID)))
-          .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-    }
 
-    // Handle timer to decrement intervals and return jobs to poll
+    /**
+     * Handles the polling timer by decrementing remaining times for all metric jobs.
+     * Returns a list of jobs ready to be polled (remaining time <= 0), resetting their intervals.
+     *
+     * @return A list of metric job JSON objects ready for polling.
+     */
     public static List<JsonObject> handleTimer()
     {
         var jobsToPoll = new ArrayList<JsonObject>();
@@ -177,6 +207,7 @@ public class MetricCache
             if (newRemainingTime <= 0)
             {
                 jobsToPoll.add(job);
+
                 // Reset remaining time to original interval
                 job.put(REMAINING_TIME, job.getInteger(ORIGINAL_INTERVAL));
             }

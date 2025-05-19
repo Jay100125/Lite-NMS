@@ -7,7 +7,6 @@ import io.vertx.core.Promise;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.sqlclient.Row;
-import io.vertx.sqlclient.RowSet;
 import io.vertx.sqlclient.SqlClient;
 import io.vertx.sqlclient.Tuple;
 import org.slf4j.Logger;

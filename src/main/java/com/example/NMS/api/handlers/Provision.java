@@ -13,17 +13,25 @@ import io.vertx.ext.web.RoutingContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Arrays;
-
 import static com.example.NMS.constant.Constant.*;
-import static com.example.NMS.constant.QueryConstant.DELETE_PROVISIONING_JOB;
-import static com.example.NMS.constant.QueryConstant.GET_ALL_PROVISIONING_JOBS;
+import static com.example.NMS.constant.QueryConstant.*;
 import static com.example.NMS.service.QueryProcessor.*;
 
+/**
+ * Manages provisioning jobs in Lite NMS, handling creation, retrieval, deletion, metric updates, and polled data retrieval.
+ * This class provides REST-ful API endpoints to manage provisioning jobs, which define network devices to be monitored,
+ * including their IP addresses, ports, and associated metrics.
+ */
 public class Provision
 {
     public static final Logger LOGGER = LoggerFactory.getLogger(Provision.class);
 
+  /**
+   * Initializes API routes for provisioning job management endpoints.
+   * Sets up routes for creating, retrieving, deleting, updating metrics, and fetching polled data for provisioning jobs.
+   *
+   * @param provisionRouter The Vert.x router to attach the provisioning endpoints to.
+   */
     public void init(Router provisionRouter)
     {
         provisionRouter.post("/api/provision/:id").handler(this::createProvision);
@@ -37,11 +45,18 @@ public class Provision
         provisionRouter.get("/api/polled-data").handler(this::getAllPolledData);
     }
 
+
+  /**
+   * Handles POST requests to create provisioning jobs for a device.
+   * Validates the discovery profile ID and selected IP addresses, then creates provisioning jobs for monitoring.
+   *
+   * @param context The routing context containing the HTTP request with discovery profile ID and IP addresses.
+   */
     public void createProvision(RoutingContext context)
     {
         try
         {
-            // Get the discovery profile ID from path parameter
+            // Parse and validate provisioning job ID from path (discovery profile ID)
             var id = ApiUtils.parseIdFromPath(context, ID);
 
             if (id == -1)
@@ -58,6 +73,7 @@ public class Provision
                 return;
             }
 
+            // Validate selected IP addresses
             var selectedIps = body.getJsonArray(SELECTED_IPS);
 
             if (selectedIps == null || selectedIps.isEmpty())
@@ -67,7 +83,7 @@ public class Provision
                 return;
             }
 
-
+            // Validate each IP address
             for (var i = 0; i < selectedIps.size(); i++)
             {
                 var ip = selectedIps.getString(i);
@@ -80,6 +96,7 @@ public class Provision
                 }
             }
 
+            // Create provisioning jobs
             ProvisionService.createProvisioningJobs(id, selectedIps)
               .onComplete(queryResult ->
               {
@@ -87,16 +104,7 @@ public class Provision
                   {
                       var result = queryResult.result();
 
-//                      context.response()
-//                        .setStatusCode(201)
-//                        .putHeader("Content-Type", "application/json")
-//                        .end(new JsonObject()
-//                          .put(MESSAGE, SUCCESS)
-//                          .put("Provision_created", result.getJsonArray("insertedRecords"))
-//                          .put("invalid_ips", result.getJsonArray("invalidIps"))
-//                          .encodePrettily());
-
-                    ApiUtils.sendSuccess(context,201, "Provision created",new JsonArray().add(result));
+                      ApiUtils.sendSuccess(context,201, "Provision created",new JsonArray().add(result));
                   }
                   else
                   {
@@ -110,6 +118,7 @@ public class Provision
 
                           return;
                       }
+
                       ApiUtils.sendError(context, status, "Failed to create provisioning jobs: " + error.getMessage());
                   }
               });
@@ -120,11 +129,17 @@ public class Provision
         }
     }
 
-
+  /**
+   * Handles GET requests to retrieve all provisioning jobs.
+   * Fetches all provisioning jobs from the database and returns them.
+   *
+   * @param context The routing context containing the HTTP request.
+   */
     public void getAllProvisions(RoutingContext context)
     {
         try
         {
+            // Prepare query to fetch all provisioning jobs
             var query = new JsonObject()
               .put(QUERY, GET_ALL_PROVISIONING_JOBS);
 
@@ -142,15 +157,7 @@ public class Provision
                           return;
                       }
 
-//                      context.response()
-//                        .setStatusCode(200)
-//                        .putHeader("Content-Type", "application/json")
-//                        .end(new JsonObject()
-//                          .put(MESSAGE, SUCCESS)
-//                          .put(RESULT, result)
-//                          .encodePrettily());
-
-                    ApiUtils.sendSuccess(context,200, "all provision",result);
+                      ApiUtils.sendSuccess(context,200, "all provision",result);
                   }
                   else
                   {
@@ -168,10 +175,17 @@ public class Provision
         }
     }
 
+  /**
+   * Handles DELETE requests to remove a provisioning job by its ID.
+   * Deletes the job from the database and removes associated metrics from the cache.
+   *
+   * @param context The routing context containing the HTTP request with provisioning job ID.
+   */
     public void deleteProvision(RoutingContext context)
     {
         try
         {
+            // Parse and validate provisioning job ID from path
             var id = ApiUtils.parseIdFromPath(context, ID);
 
             if (id == -1)
@@ -218,6 +232,12 @@ public class Provision
         }
     }
 
+  /**
+   * Handles PUT requests to update metrics for a provisioning job.
+   * Validates the metrics configuration, upsert metrics in the database, and updates the metric cache.
+   *
+   * @param context The routing context containing the HTTP request with provisioning job ID and metrics data.
+   */
     public void updateMetrics(RoutingContext context)
     {
         try
@@ -293,10 +313,7 @@ public class Provision
               {
                   // Fetch provisioning job details
                   var combinedQuery = new JsonObject()
-                    .put(QUERY, "SELECT pj.ip, pj.port, pj.credential_profile_id, cp.cred_data AS cred_data " +
-                      "FROM provisioning_jobs pj " +
-                      "LEFT JOIN credential_profile cp ON pj.credential_profile_id = cp.id " +
-                      "WHERE pj.id = $1")
+                    .put(QUERY, GET_PROVISIONING_JOB_DETAILS)
                     .put(PARAMS, new JsonArray().add(id));
 
                   return executeQuery(combinedQuery)
@@ -349,14 +366,7 @@ public class Provision
               {
                   if(result.succeeded())
                   {
-//                      context.response()
-//                        .setStatusCode(200)
-//                        .putHeader("Content-Type", "application/json")
-//                        .end(new JsonObject()
-//                          .put(MESSAGE, SUCCESS)
-//                          .put(PROVISIONING_JOB_ID, id)
-//                          .encodePrettily());
-                    ApiUtils.sendSuccess(context, 200, "Updated metrics successfully", new JsonArray().add(id));
+                      ApiUtils.sendSuccess(context, 200, "Updated metrics successfully", new JsonArray().add(id));
                   }
                   else
                   {
@@ -375,6 +385,13 @@ public class Provision
 
     }
 
+
+  /**
+   * Handles GET requests to retrieve all polled data for provisioning jobs.
+   * Fetches polled data from the database and returns it.
+   *
+   * @param context The routing context containing the HTTP request.
+   */
     public void getAllPolledData(RoutingContext context)
     {
         try
