@@ -49,8 +49,11 @@ public class Server extends AbstractVerticle
 
         // Create sub-routers for specific handlers
         var authRoute = Router.router(vertx);
+
         var discoveryRoute = Router.router(vertx);
+
         var credentialRoute = Router.router(vertx);
+
         var provisionRoute = Router.router(vertx);
 
         router.route("/api/*").handler(BodyHandler.create());
@@ -74,15 +77,21 @@ public class Server extends AbstractVerticle
 
         // Mount sub-routers to the main router
         router.route().subRouter(authRoute);
+
         router.route().subRouter(credentialRoute);
+
         router.route().subRouter(discoveryRoute);
+
         router.route().subRouter(provisionRoute);
 
 
         // Initialize handlers with their respective sub-routers
         new Auth(jwtAuth).init(authRoute);
+
         new Credential().init(credentialRoute);
+
         new Discovery().init(discoveryRoute);
+
         new Provision().init(provisionRoute);
 
 

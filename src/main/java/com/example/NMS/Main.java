@@ -3,8 +3,12 @@ package com.example.NMS;
 import com.example.NMS.api.Server;
 import com.example.NMS.database.Database;
 import com.example.NMS.discovery.Discovery;
+import com.example.NMS.plugin.Plugin;
+import com.example.NMS.plugin.ResponseProcessor;
 import com.example.NMS.polling.Polling;
 import com.example.NMS.polling.Scheduler;
+import io.vertx.core.DeploymentOptions;
+import io.vertx.core.ThreadingModel;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
 import org.slf4j.Logger;
@@ -30,9 +34,13 @@ public class Main
 
             .compose(response -> vertx.deployVerticle(Discovery.class.getName()))
 
-            .compose(response -> vertx.deployVerticle(Scheduler.class.getName()))
+//            .compose(response -> vertx.deployVerticle(Scheduler.class.getName()))
+//
+//            .compose(response -> vertx.deployVerticle(Polling.class.getName()))
 
-            .compose(response -> vertx.deployVerticle(Polling.class.getName()))
+            .compose(response -> vertx.deployVerticle(Plugin.class.getName(),  new DeploymentOptions().setThreadingModel(ThreadingModel.WORKER)))
+
+            .compose(response -> vertx.deployVerticle(ResponseProcessor.class.getName()))
 
             .onComplete(handler -> {
 

@@ -1,7 +1,7 @@
 package com.example.NMS.api.handlers;
 
 import com.example.NMS.constant.QueryConstant;
-import com.example.NMS.utility.ApiUtils;
+import com.example.NMS.utility.APIUtils;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.auth.jwt.JWTAuth;
@@ -12,7 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static com.example.NMS.constant.Constant.*;
-import static com.example.NMS.service.QueryProcessor.executeQuery;
+import static com.example.NMS.utility.DBUtils.executeQuery;
 
 /**
  * Handles user authentication for Lite NMS, including registration and login with JWT token generation.
@@ -60,7 +60,7 @@ public class Auth
             // validating the request body
             if (body == null)
             {
-                ApiUtils.sendError(context, 400, "Missing request body");
+                APIUtils.sendError(context, 400, "Missing request body");
 
                 return;
             }
@@ -73,7 +73,7 @@ public class Auth
             // Validate username and password
             if (username == null || username.trim().isEmpty() || password == null || password.length() < 8)
             {
-                ApiUtils.sendError(context, 400, "Invalid username or password (minimum 8 characters for password)");
+                APIUtils.sendError(context, 400, "Invalid username or password (minimum 8 characters for password)");
 
                 return;
             }
@@ -100,11 +100,11 @@ public class Auth
 
                             LOGGER.info("User registered successfully: username={}, userId={}", username, userId);
 
-                            ApiUtils.sendSuccess(context,201, "user registered successfully", result);
+                            APIUtils.sendSuccess(context,201, "user registered successfully", result);
                         }
                         else
                         {
-                            ApiUtils.sendError(context, 500, "Failed to register user: No ID returned from database.");
+                            APIUtils.sendError(context, 500, "Failed to register user: No ID returned from database.");
                         }
                     }
                     else
@@ -116,13 +116,13 @@ public class Auth
                         {
                             LOGGER.warn("Registration failed for username={}: Username already exists", username);
 
-                            ApiUtils.sendError(context, 409, "Username already exists");
+                            APIUtils.sendError(context, 409, "Username already exists");
                         }
                         else
                         {
                             LOGGER.error("User registration failed for {}. Database Error: {}", username, error.getMessage());
 
-                            ApiUtils.sendError(context, 500, "Failed to register user: " + error.getMessage());
+                            APIUtils.sendError(context, 500, "Failed to register user: " + error.getMessage());
                         }
                     }
                 });
@@ -131,7 +131,7 @@ public class Auth
         {
             LOGGER.error("Unexpected error during registration: {}", exception.getMessage(), exception);
 
-            ApiUtils.sendError(context, 500, "An unexpected error occurred during registration.");
+            APIUtils.sendError(context, 500, "An unexpected error occurred during registration.");
         }
     }
 
@@ -151,7 +151,7 @@ public class Auth
 
             if (body == null)
             {
-                ApiUtils.sendError(context, 400, "Missing request body");
+                APIUtils.sendError(context, 400, "Missing request body");
 
                 return;
             }
@@ -162,7 +162,7 @@ public class Auth
 
             if (username == null || username.trim().isEmpty() || password == null || password.isEmpty())
             {
-                ApiUtils.sendError(context, 400, "Username and password are required");
+                APIUtils.sendError(context, 400, "Username and password are required");
 
                 return;
             }
@@ -205,21 +205,21 @@ public class Auth
                                 LOGGER.info("User logged in: {}", username);
 
                                 // sending the response
-                                ApiUtils.sendSuccess(context,200,"Login successful", new JsonArray().add(token));
+                                APIUtils.sendSuccess(context,200,"Login successful", new JsonArray().add(token));
 
                             }
                             else
                             {
                                 LOGGER.warn("Failed login attempt for username: {} (Incorrect password)", username);
 
-                                ApiUtils.sendError(context, 401, "Invalid username or password");
+                                APIUtils.sendError(context, 401, "Invalid username or password");
                             }
                         }
                         else
                         {
                             LOGGER.warn("Failed login attempt for username: {} (User not found)", username);
 
-                            ApiUtils.sendError(context, 401, "Invalid username or password");
+                            APIUtils.sendError(context, 401, "Invalid username or password");
                         }
                     }
                     else
@@ -228,7 +228,7 @@ public class Auth
 
                         LOGGER.error("User login query execution failed for username {}: {}", username, error.getMessage());
 
-                        ApiUtils.sendError(context, 500, "Login failed due to a server error: " + error.getMessage());
+                        APIUtils.sendError(context, 500, "Login failed due to a server error: " + error.getMessage());
                     }
                 });
         }
@@ -236,7 +236,7 @@ public class Auth
         {
             LOGGER.error("Unexpected error during login: {}", exception.getMessage());
 
-            ApiUtils.sendError(context, 500, "An unexpected error occurred during login.");
+            APIUtils.sendError(context, 500, "An unexpected error occurred during login.");
         }
     }
 }

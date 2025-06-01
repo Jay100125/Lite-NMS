@@ -1,14 +1,15 @@
 package com.example.NMS.api.handlers;
 
 import com.example.NMS.constant.QueryConstant;
-import com.example.NMS.utility.ApiUtils;
+import com.example.NMS.utility.APIUtils;
+import com.example.NMS.utility.Validator;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import static com.example.NMS.service.QueryProcessor.executeQuery;
+import static com.example.NMS.utility.DBUtils.executeQuery;
 import static com.example.NMS.constant.Constant.*;
 import static com.example.NMS.constant.QueryConstant.*;
 
@@ -47,34 +48,30 @@ public class Credential
    *
    * @param context The routing context containing the HTTP request with credential data.
    */
-    private void create(RoutingContext context)
+    protected void create(RoutingContext context)
     {
         try
         {
-            // Extract JSON request body
-            var body =  context.body().asJsonObject();
+            var fields = new String[]{CREDENTIAL_NAME, PROTOCOL, CRED_DATA};
 
-            // Validate that the request body contains all required fields
-            if (body == null || body.isEmpty() || !body.containsKey(CREDENTIAL_NAME) || !body.containsKey(SYSTEM_TYPE) || !body.containsKey(CRED_DATA))
-            {
-                LOGGER.warn("Create credential failed: Missing or invalid request body");
-
-                ApiUtils.sendError(context, 400, "missing field or invalid data");
-
+            if (Validator.checkRequestFields(context, fields, true)) {
                 return;
             }
 
+            // Extract JSON request body
+            var body =  context.body().asJsonObject();
+
             var credentialName = body.getString(CREDENTIAL_NAME);
 
-            var systemType = body.getString(SYSTEM_TYPE);
+            var protocol = body.getString(PROTOCOL);
 
             var credentialData = body.getJsonObject(CRED_DATA);
 
-            if (credentialName.isEmpty() || systemType.isEmpty() || !credentialData.containsKey(USER) || !credentialData.containsKey(PASSWORD) || credentialData.getString(USER).isEmpty() || credentialData.getString(PASSWORD).isEmpty())
+            if (!credentialData.containsKey(USER) || !credentialData.containsKey(PASSWORD) || credentialData.getString(USER).isEmpty() || credentialData.getString(PASSWORD).isEmpty())
             {
                 LOGGER.warn("Create credential failed: Invalid credential name, system type, or credential data");
 
-                ApiUtils.sendError(context, 400, "missing field or invalid data");
+                APIUtils.sendError(context, 400, "missing field or invalid data");
 
                 return;
             }
@@ -82,7 +79,7 @@ public class Credential
             // Prepare database query to insert the new credential
             var insertQuery = new JsonObject()
               .put(QUERY, INSERT_CREDENTIAL)
-              .put(PARAMS, new JsonArray().add(credentialName).add(systemType).add(credentialData));
+              .put(PARAMS, new JsonArray().add(credentialName).add(protocol).add(credentialData));
 
             executeQuery(insertQuery)
                 .onComplete(queryResult ->
@@ -93,10 +90,10 @@ public class Credential
 
                         if (result.isEmpty())
                         {
-                            ApiUtils.sendError(context, 409, "Cannot create credential");
+                            APIUtils.sendError(context, 409, "Cannot create credential");
                         }
 
-                        ApiUtils.sendSuccess(context,201, "Credential profile created", result);
+                        APIUtils.sendSuccess(context,201, "Credential profile created", result);
 
                     }
                     else
@@ -106,23 +103,24 @@ public class Credential
                         // Handle duplicate credential name
                         if(error.getMessage().contains("unique_credential_name"))
                         {
-                            ApiUtils.sendError(context, 409, "Credential name already exists");
+                            APIUtils.sendError(context, 409, "Credential name already exists");
                         }
                         else
                         {
                             LOGGER.error("Failed to create credential: {}", error.getMessage());
 
-                            ApiUtils.sendError(context, 500, "Database error: " + error.getMessage());
+                            APIUtils.sendError(context, 500, "Database error: " + error.getMessage());
                         }
                     }
                 });
         }
         catch (Exception exception)
         {
-          LOGGER.error(exception.getMessage(), exception);
+            LOGGER.error(exception.getMessage(), exception);
+
+            APIUtils.sendError(context, 500, "Internal server error");
         }
     }
-
 
   /**
    * Handles the PATCH request to update an existing SSH credential profile.
@@ -136,9 +134,16 @@ public class Credential
         try
         {
             // Parse and validate credential ID from path parameter
-            var id = ApiUtils.parseIdFromPath(context, ID);
+            var id = APIUtils.parseIdFromPath(context, ID);
 
             if (id == -1)
+            {
+                return;
+            }
+
+            var fields = new String[]{CREDENTIAL_NAME, PROTOCOL, CRED_DATA};
+
+            if (Validator.checkRequestFields(context, fields, false))
             {
                 return;
             }
@@ -146,29 +151,22 @@ public class Credential
             // Extract JSON request body
             var body = context.body().asJsonObject();
 
-            if (body == null || body.isEmpty())
-            {
-                ApiUtils.sendError(context, 400, "Missing or invalid data");
-
-                return;
-            }
-
-            // Validate system_type if provided
-            var systemType = body.getString(SYSTEM_TYPE);
+            // Validate protocol if provided
+            var protocol = body.getString(PROTOCOL);
 
             // Validate credential_data if provided
             var credentialData = body.getJsonObject(CRED_DATA);
 
             if (credentialData != null && (!credentialData.containsKey(USER) || !credentialData.containsKey(PASSWORD)))
             {
-                ApiUtils.sendError(context, 400, "cred_data must contain user and password");
+                APIUtils.sendError(context, 400, "cred_data must contain user and password");
 
                 return;
             }
 
             var params = new JsonArray()
               .add(body.getString(CREDENTIAL_NAME)) // Can be null
-              .add(systemType) // Can be null
+              .add(protocol) // Can be null
               .add(credentialData) // Can be null
               .add(id);
 
@@ -187,13 +185,13 @@ public class Credential
                         {
                             LOGGER.info("Credential updated successfully: ID={}", id);
 
-                            ApiUtils.sendSuccess(context, 200, "Credential profile updated", result);
+                            APIUtils.sendSuccess(context, 200, "Credential profile updated", result);
                         }
                         else
                         {
                             LOGGER.warn("Update credential failed: Credential not found for ID={}", id);
 
-                            ApiUtils.sendError(context, 404, "Credential not found");
+                            APIUtils.sendError(context, 404, "Credential not found");
                         }
                     }
                     else
@@ -202,7 +200,7 @@ public class Credential
 
                         LOGGER.error("Update credential failed for ID={}: Database error - {}", id, queryError.getMessage(), queryError);
 
-                        ApiUtils.sendError(context, 500, "Database error: " + queryError.getMessage());
+                        APIUtils.sendError(context, 500, "Database error: " + queryError.getMessage());
                     }
                 });
 
@@ -211,7 +209,7 @@ public class Credential
         {
             LOGGER.error("Unexpected error while updating credential: {}", exception.getMessage());
 
-            ApiUtils.sendError(context, 500, "Internal server error");
+            APIUtils.sendError(context, 500, "Internal server error");
         }
     }
 
@@ -238,11 +236,11 @@ public class Credential
 
                     if (!result.isEmpty())
                     {
-                        ApiUtils.sendSuccess(context,200,"Credential profiles", result);
+                        APIUtils.sendSuccess(context,200,"Credential profiles", result);
                     }
                     else
                     {
-                        ApiUtils.sendError(context, 404, "No credentials found");
+                        APIUtils.sendError(context, 404, "No credentials found");
                     }
                 }
                 else
@@ -251,7 +249,7 @@ public class Credential
 
                     LOGGER.error("Failed to fetch credentials: {}", error.getMessage());
 
-                    ApiUtils.sendError(context, 500, "Database error: " + error.getMessage());
+                    APIUtils.sendError(context, 500, "Database error: " + error.getMessage());
                 }
             });
     }
@@ -267,7 +265,7 @@ public class Credential
         try
         {
             // Parse and validate credential ID from path parameter
-            var id = ApiUtils.parseIdFromPath(context, ID);
+            var id = APIUtils.parseIdFromPath(context, ID);
 
             if (id == -1)
             {
@@ -288,11 +286,11 @@ public class Credential
 
                         if (!result.isEmpty())
                         {
-                            ApiUtils.sendSuccess(context, 200, "Credential profile for current Id",result);
+                            APIUtils.sendSuccess(context, 200, "Credential profile for current Id",result);
                         }
                         else
                         {
-                            ApiUtils.sendError(context, 404, "Credential not found");
+                            APIUtils.sendError(context, 404, "Credential not found");
                         }
                     }
                     else
@@ -301,7 +299,7 @@ public class Credential
 
                         LOGGER.error("Failed to fetch credential {}: {}", id, error.getMessage());
 
-                        ApiUtils.sendError(context, 500, "Database error: " + error.getMessage());
+                        APIUtils.sendError(context, 500, "Database error: " + error.getMessage());
                     }
                 });
         }
@@ -309,11 +307,9 @@ public class Credential
         {
             LOGGER.error("Unexpected error while fetching credential: {}", exception.getMessage());
 
-            ApiUtils.sendError(context, 500, "Unexpected error: " + exception.getMessage());
+            APIUtils.sendError(context, 500, "Unexpected error: " + exception.getMessage());
         }
     }
-
-
 
   /**
    * Handles the DELETE request to remove an SSH credential profile by its ID.
@@ -326,7 +322,7 @@ public class Credential
         try
         {
             // Parse and validate credential ID from path parameter
-            var id = ApiUtils.parseIdFromPath(context, ID);
+            var id = APIUtils.parseIdFromPath(context, ID);
 
             if (id == -1)
             {
@@ -347,11 +343,11 @@ public class Credential
 
                       if (!result.isEmpty())
                       {
-                          ApiUtils.sendSuccess(context, 200,"deleted credential profile", result);
+                          APIUtils.sendSuccess(context, 200,"deleted credential profile", result);
                       }
                       else
                       {
-                          ApiUtils.sendError(context, 404, "Credential not found");
+                          APIUtils.sendError(context, 404, "Credential not found");
                       }
                   }
                   else
@@ -360,7 +356,7 @@ public class Credential
 
                       LOGGER.error("Failed to delete credential {}: {}", id, error.getMessage());
 
-                      ApiUtils.sendError(context, 500, "Database error: " + error.getMessage());
+                      APIUtils.sendError(context, 500, "Database error: " + error.getMessage());
                   }
               });
         }
@@ -368,7 +364,7 @@ public class Credential
         {
             LOGGER.error("Unexpected error while deleting credential: {}", exception.getMessage());
 
-            ApiUtils.sendError(context, 500, "Unexpected error: " + exception.getMessage());
+            APIUtils.sendError(context, 500, "Unexpected error: " + exception.getMessage());
         }
     }
 }

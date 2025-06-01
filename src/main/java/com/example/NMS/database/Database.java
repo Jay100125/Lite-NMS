@@ -7,6 +7,7 @@ import io.vertx.core.Promise;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.sqlclient.Row;
+import io.vertx.sqlclient.RowSet;
 import io.vertx.sqlclient.SqlClient;
 import io.vertx.sqlclient.Tuple;
 import org.slf4j.Logger;
@@ -14,6 +15,7 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.stream.Collectors;
 
 import static com.example.NMS.constant.Constant.*;
 
@@ -36,25 +38,25 @@ public class Database extends AbstractVerticle
 
         // Initialize the database schema
         initializeSchema()
-          .onComplete(result ->
-          {
-              if (result.succeeded())
-              {
-                  LOGGER.info("Database schema initialization successful.");
-                  // Set event bus consumers after schema initialization
-                  setUpConsumers();
+            .onComplete(result ->
+            {
+                if (result.succeeded())
+                {
+                    LOGGER.info("Database schema initialization successful.");
+                    // Set event bus consumers after schema initialization
+                    setUpConsumers();
 
-                  startPromise.complete();
+                    startPromise.complete();
 
-                  LOGGER.info("Database Verticle started and event bus consumers registered.");
-              }
-              else
-              {
-                  LOGGER.error("Schema initialization failed: {}", result.cause().getMessage(), result.cause());
+                    LOGGER.info("Database Verticle started and event bus consumers registered.");
+                }
+                else
+                {
+                    LOGGER.error("Schema initialization failed: {}", result.cause().getMessage(), result.cause());
 
-                  startPromise.fail(result.cause());
-              }
-          });
+                    startPromise.fail(result.cause());
+                }
+            });
     }
 
     /**
@@ -73,76 +75,27 @@ public class Database extends AbstractVerticle
 
             var params = Tuple.tuple();
 
-            // Convert JsonArray params to Tuple
-            for (var i = 0; i < paramArray.size(); i++)
-            {
-                var value = paramArray.getValue(i);
-
-                if (value instanceof JsonArray jsonArray)
-                {
-                    // Handle array types for SQL (e.g., ANY($2::varchar[]))
-                    var s = new String[jsonArray.size()];
-
-                    for (var j = 0; j < jsonArray.size(); j++)
-                    {
-                      s[j] = jsonArray.getString(j);
-                    }
-                    params.addValue(s);
-                }
-                else
-                {
-                    params.addValue(value);
-                }
-            }
+            paramArray.forEach(params::addValue);
 
             LOGGER.debug("Executing query: {} with params: {}", query, params);
 
-            client.preparedQuery(query).execute(params, asyncResult ->
+
+            client.preparedQuery(query).execute(params).map(this::toJsonArray).onComplete(result ->
             {
-                if (asyncResult.succeeded())
+
+                if(result.succeeded())
                 {
-                    var jsonRows = new JsonArray();
+                    var jsonRows = result.result();
 
-                    asyncResult.result().forEach(row ->
-                    {
-                        var obj = new JsonObject();
+                    LOGGER.debug("Query successful: {}, result size: {}", query, jsonRows.size());
 
-                        for (var i = 0; i < row.size(); i++)
-                        {
-                            var columnName = row.getColumnName(i);
-
-                            var columnValue = row.getValue(i);
-                            // Handle array types from database result
-                            if (columnValue != null && columnValue.getClass().isArray())
-                            {
-                                var array = (Object[]) columnValue;
-
-                                var jsonArrayValue = new JsonArray();
-
-                                for (var item : array)
-                                {
-                                  jsonArrayValue.add(item);
-                                }
-
-                                obj.put(columnName, jsonArrayValue);
-                            }
-                          else
-                          {
-                              obj.put(columnName, columnValue);
-                          }
-                        }
-                        jsonRows.add(obj);
-                      });
-
-                      LOGGER.debug("Query successful: {}, result size: {}", query, jsonRows.size());
-
-                      message.reply(jsonRows);
+                    message.reply(jsonRows);
                 }
                 else
                 {
-                    LOGGER.error("❌ Query failed: {}. Error: {}", query, asyncResult.cause().getMessage());
+                    LOGGER.error("❌ Query failed: {}. Error: {}", query, result.cause().getMessage());
 
-                    message.fail(500, asyncResult.cause().getMessage());
+                    message.fail(500, result.cause().getMessage());
                 }
             });
         });
@@ -156,73 +109,40 @@ public class Database extends AbstractVerticle
 
             var batchParams = request.getJsonArray(BATCHPARAMS);
 
-            if (query == null || batchParams == null || batchParams.isEmpty())
-            {
-                LOGGER.error("Invalid batch request: query={}, batchParams={}", query, batchParams);
-
-                message.fail(500, "Missing query or batch parameters");
-
-                return;
-            }
-
             var batch = new ArrayList<Tuple>();
+
             // Convert JsonArray of batch parameters to a List of Tuples
             for (var i = 0; i < batchParams.size(); i++)
             {
-                var params = batchParams.getJsonArray(i);
+                var paramArray = batchParams.getJsonArray(i);
 
-                var tuple = Tuple.tuple();
-                // This part needs to be robust and handle different types and nulls correctly based on your specific queries
-                for (var j = 0; j < params.size(); j++)
-                {
-                    tuple.addValue(params.getValue(j));
-                }
-                batch.add(tuple);
+                var params = Tuple.tuple();
+
+                paramArray.forEach(params::addValue);
+
+                batch.add(params);
             }
 
             LOGGER.debug("Executing batch query: {}, number of tuples: {}", query, batch.size());
 
-            //execute the batch query
-            client.preparedQuery(query).executeBatch(batch, asyncResult -> {
-
-                if (asyncResult.succeeded())
+            client.preparedQuery(query).executeBatch(batch).map(this::toJsonArray).onComplete(result ->
+            {
+                if(result.succeeded())
                 {
-                    var insertedIds = new JsonArray();
-
-                    var rows = asyncResult.result();
-
-                    // Iterate through all RowSets
-                    while (rows != null)
-                    {
-                      // Process each row in the current RowSet
-                        for (Row row : rows)
-                        {
-                            var idIndex = row.getColumnIndex(ID);
-
-                            if (idIndex != -1 && row.getValue(idIndex) != null)
-                            {
-                                var id = row.getLong(idIndex);
-
-                                insertedIds.add(id);
-                            }
-                            else
-                            {
-                                LOGGER.warn("No 'id' column found for query: {}. Row content: {}",
-                                  query, row.toJson().encodePrettily());
-                            }
-                        }
-                      rows = rows.next();
-                    }
+                    var insertedIds = result.result();
 
                     LOGGER.info("Batch query successful: {}, extracted IDs: {}", query, insertedIds.size());
 
-                    message.reply(insertedIds);
+                    if (message.replyAddress() != null)
+                    {
+                        message.reply(insertedIds);
+                    }
                 }
                 else
                 {
-                    LOGGER.error("❌ Batch query failed: {}. Error: {}", query, asyncResult.cause().getMessage());
+                    LOGGER.error("❌ Batch query failed: {}. Error: {}", query, result.cause().getMessage());
 
-                    message.fail(500, asyncResult.cause().getMessage());
+                    message.fail(500, result.cause().getMessage());
                 }
             });
         });
@@ -275,35 +195,36 @@ public class Database extends AbstractVerticle
                         LOGGER.debug("Executing DDL: {}", trimmedStatement);
 
                         client.query(trimmedStatement).execute()
-                          .onSuccess(result ->
-                          {
-                              LOGGER.debug("Successfully executed DDL: {}", trimmedStatement);
+                            .onSuccess(result ->
+                            {
+                                LOGGER.debug("Successfully executed DDL: {}", trimmedStatement);
 
-                              statementPromise.complete();
-                          })
-                          .onFailure(error ->
-                          {
-                              LOGGER.error("Failed to execute DDL: {} - Error: {}", trimmedStatement, error.getMessage());
+                                statementPromise.complete();
+                            })
+                            .onFailure(error ->
+                            {
+                                LOGGER.error("Failed to execute DDL: {} - Error: {}", trimmedStatement, error.getMessage());
 
-                              statementPromise.fail(error);
-                          });
+                                statementPromise.fail(error);
+                            });
                         executionFutures.add(statementPromise.future());
                     }
                 }
 
                 // Wait for all DDL statements to complete
                 CompositeFuture.all((executionFutures))
-                  .onSuccess(result ->
-                  {
-                      LOGGER.info("All DDL statements processed.");
+                    .onSuccess(result ->
+                    {
+                        LOGGER.info("All DDL statements processed.");
 
-                      blockingPromise.complete();
-                  })
-                  .onFailure(error -> {
-                      LOGGER.error("Error processing DDL statements: {}", error.getMessage(), error);
+                        blockingPromise.complete();
+                    })
+                    .onFailure(error ->
+                    {
+                        LOGGER.error("Error processing DDL statements: {}", error.getMessage(), error);
 
-                      blockingPromise.fail(error);
-                  });
+                        blockingPromise.fail(error);
+                    });
 
             }
             catch (Exception exception)
@@ -312,7 +233,8 @@ public class Database extends AbstractVerticle
 
                 blockingPromise.fail(exception);
             }
-        }, result -> {
+        }, result ->
+        {
             if (result.succeeded())
             {
                 promise.complete();
@@ -325,6 +247,17 @@ public class Database extends AbstractVerticle
         return promise.future();
     }
 
+    private JsonArray toJsonArray(RowSet<Row> rows)
+    {
+        var results = new JsonArray();
+
+        for (Row row : rows)
+        {
+            results.add(row.toJson());
+        }
+
+        return results;
+    }
     @Override
     public void stop(Promise<Void> stopPromise)
     {

@@ -9,11 +9,12 @@ import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.HashMap;
 import java.util.List;
 
 import static com.example.NMS.constant.Constant.*;
-import static com.example.NMS.service.QueryProcessor.executeBatchQuery;
-import static com.example.NMS.service.QueryProcessor.executeQuery;
+import static com.example.NMS.utility.DBUtils.executeBatchQuery;
+import static com.example.NMS.utility.DBUtils.executeQuery;
 import static com.example.NMS.utility.Utility.*;
 
 
@@ -22,10 +23,10 @@ import static com.example.NMS.utility.Utility.*;
  * Consumes discovery requests from the event bus, fetches discovery profiles, resolves IP addresses,
  * checks reachability, executes an SSH plugin for discovery, and stores results in the database.
  */
-
+// TODO: Single responsibility and event-driven design principles
 public class Discovery extends AbstractVerticle
 {
-      private static final Logger LOGGER = LoggerFactory.getLogger(Discovery.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(Discovery.class);
 
 
     /**
@@ -34,28 +35,28 @@ public class Discovery extends AbstractVerticle
      *
      * @param startPromise The promise to complete or fail based on startup success.
      */
-      @Override
-      public void start(Promise<Void> startPromise)
-      {
-          // Set up event bus consumer for discovery requests
-          vertx.eventBus().<JsonObject>localConsumer(DISCOVERY_RUN, message ->
-          {
-              var id = message.body().getLong(ID);
+    @Override
+    public void start(Promise<Void> startPromise)
+    {
+        // Set up event bus consumer for discovery requests
+        vertx.eventBus().<JsonObject>localConsumer(DISCOVERY_RUN, message ->
+        {
+            var id = message.body().getLong(ID);
 
-              runDiscovery(id)
+            runDiscovery(id)
                 .onComplete(result ->
                 {
                     if (result.failed())
                     {
-                      LOGGER.error("Discovery failed for ID {}: {}", id, result.cause().getMessage());
+                        LOGGER.error("Discovery failed for ID {}: {}", id, result.cause().getMessage());
                     }
                 });
-          });
+        });
 
-          LOGGER.info("Discovery verticle deployed");
+        LOGGER.info("Discovery verticle deployed");
 
-          startPromise.complete();
-      }
+        startPromise.complete();
+    }
 
     /**
      * Runs a discovery process for the specified discovery profile ID.
@@ -64,13 +65,13 @@ public class Discovery extends AbstractVerticle
      * @param id The discovery profile ID.
      * @return A Future containing the reachability results as a JSON array.
      */
-      private Future<JsonArray> runDiscovery(long id)
-      {
-          return fetchDiscoveryProfile(id)
+    private Future<JsonArray> runDiscovery(long id)
+    {
+        return fetchDiscoveryProfile(id)
             .compose(body -> executeDiscovery(body, id))
             .compose(results -> setDiscoveryStatus(id).map(results))
             .recover(Future::failedFuture);
-      }
+    }
 
     /**
      * Updates the discovery profile status to true (completed) in the database.
@@ -79,13 +80,13 @@ public class Discovery extends AbstractVerticle
      * @param id The discovery profile ID.
      * @return A Future indicating success or failure.
      */
-      private Future<Void> setDiscoveryStatus(long id)
-      {
-          var query = new JsonObject()
+    private Future<Void> setDiscoveryStatus(long id)
+    {
+        var query = new JsonObject()
             .put(QUERY, QueryConstant.SET_DISCOVERY_STATUS)
             .put(PARAMS, new JsonArray().add(true).add(id));
 
-          return executeQuery(query)
+        return executeQuery(query)
             .compose(result ->
             {
                 if (!result.isEmpty())
@@ -96,7 +97,7 @@ public class Discovery extends AbstractVerticle
                 }
                 return Future.failedFuture("Failed to set discovery status");
             });
-      }
+    }
 
     /**
      * Fetches the discovery profile details, including IP addresses, port, and credentials.
@@ -104,13 +105,13 @@ public class Discovery extends AbstractVerticle
      * @param id The discovery profile ID.
      * @return A Future containing a JSON array with the profile data.
      */
-      private Future<JsonArray> fetchDiscoveryProfile(long id)
-      {
-          var fetchQuery = new JsonObject()
+    private Future<JsonArray> fetchDiscoveryProfile(long id)
+    {
+        var fetchQuery = new JsonObject()
             .put(QUERY, QueryConstant.GET_BY_RUN_ID)
             .put(PARAMS, new JsonArray().add(id));
 
-          return executeQuery(fetchQuery)
+        return executeQuery(fetchQuery)
             .compose(result ->
             {
                 if (result.isEmpty())
@@ -121,7 +122,7 @@ public class Discovery extends AbstractVerticle
                 }
                 return Future.succeededFuture(result);
             });
-      }
+    }
 
     /**
      * Executes the discovery process using the profile data.
@@ -131,29 +132,32 @@ public class Discovery extends AbstractVerticle
      * @param id The discovery profile ID.
      * @return A Future containing a JSON array of reachability results.
      */
-      private Future<JsonArray> executeDiscovery(JsonArray result, long id)
-      {
-          var profile = result.getJsonObject(0);
+    private Future<JsonArray> executeDiscovery(JsonArray result, long id)
+    {
+        var profile = result.getJsonObject(0);
 
-          var ipInput = profile.getString(IP);
+        var ipInput = profile.getString(IP);
 
-          var port = profile.getInteger(PORT);
+        var port = profile.getInteger(PORT);
 
-          var credentials = profile.getJsonArray("credential");
+        var credentials = profile.getJsonArray("credential");
 
-          LOGGER.info("Discovery profile: {}", ipInput);
+        LOGGER.info("Discovery profile: {}", ipInput);
 
-          return resolveIps(ipInput)
+//        return resolveIps(ipInput)
+//            .compose(ips -> checkReach(ips, port))
+//            .compose(reachResults -> handleConnection(reachResults, credentials, port))
+//            .compose(sshResult ->
+//            {
+//                var reachabilityResults = sshResult.getJsonArray(REACHABILITY_RESULTS);
+//                var discoveryResults = sshResult.getJsonArray(DISCOVERY_RESULTS);
+//                return storeDiscoveryResults(discoveryResults, id)
+//                    .map(reachabilityResults);
+//            });
+        return resolveIps(ipInput)
             .compose(ips -> checkReach(ips, port))
-            .compose(reachResults -> doSSH(reachResults, credentials, id, port))
-            .compose(sshResult ->
-            {
-              var reachabilityResults = sshResult.getJsonArray("reachabilityResults");
-              var discoveryResults = sshResult.getJsonArray("discoveryResults");
-              return storeDiscoveryResults(discoveryResults, id)
-                .map(reachabilityResults);
-            });
-      }
+            .compose(reachResults -> handleConnection(reachResults, credentials, port, id));
+    }
 
     /**
      * Resolves IP addresses from the input string (single IP, range, or CIDR).
@@ -161,10 +165,10 @@ public class Discovery extends AbstractVerticle
      * @param ipInput The IP address input string.
      * @return A Future containing a list of resolved IP addresses.
      */
-      private Future<List<String>> resolveIps(String ipInput)
-      {
-          return vertx.executeBlocking(() -> resolveIpAddresses(ipInput), false);
-      }
+    private Future<List<String>> resolveIps(String ipInput)
+    {
+        return vertx.executeBlocking(() -> resolveIpAddresses(ipInput), false);
+    }
 
     /**
      * Checks reachability and port availability for the given IP addresses.
@@ -173,11 +177,10 @@ public class Discovery extends AbstractVerticle
      * @param port        The port to verify (e.g., 22 for SSH).
      * @return A Future containing a JSON array of reachability results.
      */
-      private Future<JsonArray> checkReach(List<String> ips, int port)
-      {
-          return vertx.executeBlocking(() -> checkReachability(ips, port), false);
-      }
-
+    private Future<JsonArray> checkReach(List<String> ips, int port)
+    {
+        return vertx.executeBlocking(() -> checkReachability(ips, port), false);
+    }
 
     /**
      * Performs SSH discovery using the provided credentials for reachable IPs.
@@ -185,110 +188,154 @@ public class Discovery extends AbstractVerticle
      *
      * @param reachResults The JSON array of reachability results.
      * @param credentials  The JSON array of credential profiles.
-     * @param discoveryId  The discovery profile ID.
      * @param port         The port for SSH connections.
      * @return A Future containing a JSON object with reachability and discovery results.
      */
-      private Future<JsonObject> doSSH(JsonArray reachResults, JsonArray credentials, long discoveryId, int port)
-      {
-          var reachableIps = new JsonArray();
+    private Future<JsonArray> handleConnection(JsonArray reachResults, JsonArray credentials, int port, long discoveryId)
+    {
+        var reachableIps = new JsonArray();
 
-          var discoveryResults = new JsonArray();
+        var discoveryResults = new JsonArray();
 
-          // Prepare plugin input for SSH discovery
-          var pluginInput = new JsonObject()
-            .put("category", "discovery")
-            .put("metric.type", "uname")
-            .put("port", port)
-            .put("dis.id", discoveryId)
-            .put("ips", new JsonArray())
-            .put("credentials", credentials);
+        var targets = new JsonArray();
 
-          LOGGER.info(reachResults.encodePrettily());
+        LOGGER.info(reachResults.encodePrettily());
 
-          // Process reachability and plugin results
-          for (var i = 0; i < reachResults.size(); i++)
-          {
-              var obj = reachResults.getJsonObject(i);
+        var credentialProfiles = new JsonArray();
 
-              var up = obj.getBoolean("reachable");
+        for (int j = 0; j < credentials.size(); j++)
+        {
 
-              var open = obj.getBoolean("port_open");
+            var cred = credentials.getJsonObject(j);
 
-              if (up && open)
-              {
-                  pluginInput.getJsonArray("ips").add(obj.getString("ip"));
-              }
-          }
+            credentialProfiles.add(new JsonObject()
+                .put(USERNAME, cred.getString(USERNAME))
+                .put(PASSWORD, cred.getString(PASSWORD))
+                .put(ID, cred.getLong(ID)));
 
-          LOGGER.info("Plugin input: {}", pluginInput.encodePrettily());
-
-          // Execute SSH plugin
-          return vertx.executeBlocking(() -> spawnPlugin(pluginInput), false)
-            .compose(pluginResults ->
-            {
-                for (var i = 0; i < reachResults.size(); i++)
-                {
-                    var obj = reachResults.getJsonObject(i);
-
-                    var ip = obj.getString(IP);
-
-                    var up = obj.getBoolean("reachable");
-
-                    var open = obj.getBoolean("port_open");
-
-                    Long successfulCredId = null;
-
-                    String uname = null;
-
-                    var errorMsg = up ? (open ? "SSH connection failed" : "Port closed") : "Device unreachable";
-
-                    if (up && open)
-                    {
-                        for (var j = 0; j < pluginResults.size(); j++)
-                        {
-                            var res = pluginResults.getJsonObject(j);
-
-                            var resIp = res.getString(IP);
-
-                            var status = res.getString("status");
-
-                            if (ip.equals(resIp))
-                            {
-                              if ("success".equals(status))
-                              {
-                                  reachableIps.add(ip);
-                                  successfulCredId = res.getLong("credential_id");
-                                  uname = res.getString("uname");
-                                  errorMsg = null;
-                                  break;
-                              }
-                              else
-                              {
-                                  errorMsg = res.getString("error");
-                              }
-                            }
-                        }
-                    }
-
-                    discoveryResults.add(new JsonObject()
-                      .put(IP, ip)
-                      .put(PORT, port)
-                      .put(RESULT, errorMsg == null ? "completed" : "failed")
-                      .put(MESSAGE, errorMsg == null ? uname : errorMsg)
-                      .put(CREDENTIAL_PROFILE_ID, successfulCredId));
-
-                    obj.put("uname", uname);
-                    obj.put("ssh_error", errorMsg);
-                    obj.put(CREDENTIAL_PROFILE_ID, successfulCredId);
-                }
-
-                return Future.succeededFuture(new JsonObject()
-                  .put("reachabilityResults", reachResults)
-                  .put("reachableIps", reachableIps)
-                  .put("discoveryResults", discoveryResults));
-            });
         }
+        // Process reachability and plugin results
+        for (var i = 0; i < reachResults.size(); i++)
+        {
+            var obj = reachResults.getJsonObject(i);
+
+            var up = obj.getBoolean("reachable");
+
+            var open = obj.getBoolean("port_open");
+
+            if (up && open)
+            {
+
+                // Add target with credential_profiles
+                var target = new JsonObject()
+                    .put(IP, obj.getString(IP))
+                    .put(PROTOCOL, "ssh") // Assuming SSH from credentials
+                    .put(PORT, port)
+                    .put("credential_profiles", credentialProfiles)
+                    .put(PLUGIN_TYPE, LINUX);
+
+                targets.add(target);
+            }
+            else
+            {
+                var errorMsg = up ? "Port closed" : "Device unreachable";
+                discoveryResults.add(new JsonObject()
+                    .put(IP, obj.getString(IP))
+                    .put(PORT, port)
+                    .put("status", FAILURE)
+                    .put("result", errorMsg)
+                    .put("credential_id", null));
+            }
+        }
+
+        if (!discoveryResults.isEmpty())
+        {
+            var storageMessage = new JsonObject()
+                .put("results", discoveryResults)
+                .put(ID, discoveryId);
+            vertx.eventBus().send(STORAGE_DISCOVERY_RESULTS, storageMessage);
+            LOGGER.info("Sent unreachable/port-closed results to {}: {}", STORAGE_DISCOVERY_RESULTS, storageMessage.encodePrettily());
+        }
+
+        var pluginInput = new JsonObject()
+            .put(REQUEST_TYPE, DISCOVERY)
+            .put(TARGETS, targets)
+            .put("id", discoveryId);
+
+
+
+        LOGGER.info("Plugin input: {}", pluginInput.encodePrettily());
+
+
+//        // Execute SSH plugin
+//        return vertx.executeBlocking(() -> spawnPlugin(pluginInput), false)
+//            .compose(pluginResults ->
+//            {
+//                var processedIps = new HashMap<String, Boolean>();
+//
+//                for (var j = 0; j < pluginResults.size(); j++)
+//                {
+//                    var res = pluginResults.getJsonObject(j);
+//
+//                    var ip = res.getString(IP);
+//
+//                    var status = res.getString(STATUS);
+//
+//                    if (processedIps.getOrDefault(ip, false))
+//                    {
+//                        continue;
+//                    }
+//                    // Find the corresponding reachResults entry
+//                    var reachObj = reachResults.getJsonObject(j);
+//
+//                    Long successfulCredId = null;
+//
+//                    String uname = null;
+//
+//                    String errorMsg;
+//
+//                    if ("success".equals(status))
+//                    {
+//                        reachableIps.add(ip);
+//
+//                        successfulCredId = res.getLong("credential_id");
+//
+//                        uname = res.getJsonObject("data").getString("uname");
+//
+//                        errorMsg = null;
+//
+//                        processedIps.put(ip, true);
+//                    }
+//                    else
+//                    {
+//                        errorMsg = res.getString("error");
+//                    }
+//
+//                    if (!processedIps.getOrDefault(ip, false) || "success".equals(status))
+//                    {
+//                        discoveryResults.add(new JsonObject()
+//                            .put(IP, ip)
+//                            .put(PORT, port)
+//                            .put(RESULT, errorMsg == null ? "completed" : "failed")
+//                            .put(MESSAGE, errorMsg == null ? uname : errorMsg)
+//                            .put(CREDENTIAL_PROFILE_ID, successfulCredId));
+//                    }
+//
+//                    reachObj.put("uname", uname);
+//                    reachObj.put("ssh_error", errorMsg);
+//                    reachObj.put(CREDENTIAL_PROFILE_ID, successfulCredId);
+//                }
+//
+//                return Future.succeededFuture(new JsonObject()
+//                    .put(REACHABILITY_RESULTS, reachResults)
+//                    .put(REACHABLEIPS, reachableIps)
+//                    .put(DISCOVERY_RESULTS, discoveryResults));
+//            });
+        vertx.eventBus().send(PLUGIN_EXECUTE, pluginInput);
+
+        // Return reachability results as the verticle no longer waits for plugin results
+        return Future.succeededFuture(reachResults);
+    }
 
     /**
      * Stores discovery results in the database.
@@ -298,27 +345,28 @@ public class Discovery extends AbstractVerticle
      * @param discoveryId      The discovery profile ID.
      * @return A Future indicating success or failure.
      */
-      private Future<Void> storeDiscoveryResults(JsonArray discoveryResults, long discoveryId)
-      {
-          var batchParams = new JsonArray();
+    private Future<Void> storeDiscoveryResults(JsonArray discoveryResults, long discoveryId)
+    {
+        var batchParams = new JsonArray();
 
-          for (var i = 0; i < discoveryResults.size(); i++)
-          {
-              var result = discoveryResults.getJsonObject(i);
-              batchParams.add(new JsonArray()
+        for (var i = 0; i < discoveryResults.size(); i++)
+        {
+            var result = discoveryResults.getJsonObject(i);
+
+            batchParams.add(new JsonArray()
                 .add(discoveryId)
                 .add(result.getString(IP))
                 .add(result.getInteger(PORT))
                 .add(result.getString(RESULT))
                 .add(result.getString(MESSAGE))
                 .add(result.getValue(CREDENTIAL_PROFILE_ID)));
-          }
+        }
 
-          var message = new JsonObject()
-            .put(QUERY, QueryConstant.INSERT_DISCOVERY_RESULT)
-            .put(BATCHPARAMS, batchParams);
+        var message = new JsonObject()
+                            .put(QUERY, QueryConstant.INSERT_DISCOVERY_RESULT)
+                            .put(BATCHPARAMS, batchParams);
 
-          return executeBatchQuery(message)
+        return executeBatchQuery(message)
             .compose(result ->
             {
                 if (!result.isEmpty())
@@ -329,5 +377,5 @@ public class Discovery extends AbstractVerticle
                 }
                 return Future.failedFuture("Batch insert failed: " + result);
             });
-      }
+    }
 }

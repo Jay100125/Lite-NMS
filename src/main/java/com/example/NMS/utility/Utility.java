@@ -5,10 +5,10 @@ import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
+import java.io.*;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -239,9 +239,9 @@ public class Utility
                 LOGGER.warn("fping exited with code {} and no alive IPs", exitCode);
             }
         }
-        catch (Exception e)
+        catch (Exception exception)
         {
-            LOGGER.error("Error running fping: {}", e.getMessage());
+            LOGGER.error("Error running fping: {}", exception.getMessage());
         }
 
         // Check port for each IP
@@ -256,13 +256,7 @@ public class Utility
                 try
                 {
                     // Use nc to check port
-                    var pb = new ProcessBuilder("nc", "-z", "-w", "1", ip, String.valueOf(port));
-
-                    var process = pb.start();
-
-                    var exitCode = process.waitFor();
-
-                    isPortOpen = exitCode == 0;
+                    isPortOpen = isPortOpen(ip, port);
 
                     LOGGER.debug("Port check for IP {} on port {}: {}", ip, port, isPortOpen ? "open" : "closed");
                 }
@@ -310,8 +304,8 @@ public class Utility
 
         try
         {
-          // Start the SSH plugin process
-            var pb = new ProcessBuilder("./plugin/ssh_plugin");
+            // Start the SSH plugin process
+            var pb = new ProcessBuilder("./plugin/Lite_NMS_Plugin");
 
             process = pb.start();
 
@@ -331,8 +325,6 @@ public class Utility
 
             String line;
 
-            var exitCode = process.waitFor(2, TimeUnit.MINUTES) ? process.exitValue() : -1;
-
             while ((line = stdInput.readLine()) != null)
             {
                 try
@@ -343,9 +335,9 @@ public class Utility
 
                     results.add(new JsonObject(decoded));
                 }
-                catch (Exception e)
+                catch (Exception exception)
                 {
-                    LOGGER.error("Failed to decode stdout line '{}': {}", line, e.getMessage());
+                    LOGGER.error("Failed to decode stdout line '{}': {}", line, exception.getMessage());
                 }
             }
 
@@ -359,8 +351,9 @@ public class Utility
                 stderr.append(line).append("\n");
             }
 
-            // Wait for the process to exit
+            var exitCode = process.waitFor(2, TimeUnit.MINUTES) ? process.exitValue() : -1;
 
+            // Wait for the process to exit
             if (exitCode != 0)
             {
                 LOGGER.warn("SSH plugin exited with code {}", exitCode);
@@ -371,6 +364,8 @@ public class Utility
                       .put("status", "failed")
                       .put("error", "SSH plugin failed with exit code: " + exitCode));
                 }
+
+                LOGGER.info(results.encodePrettily());
             }
 
             // If no results were received, add an error
@@ -382,13 +377,13 @@ public class Utility
             }
 
         }
-        catch (Exception e)
+        catch (Exception exception)
         {
-            LOGGER.error("Error running SSH plugin: {}", e.getMessage());
+            LOGGER.error("Error running SSH plugin: {}", exception.getMessage());
 
             results.add(new JsonObject()
               .put("status", "failed")
-              .put("error", "Failed to run SSH plugin: " + e.getMessage()));
+              .put("error", "Failed to run SSH plugin: " + exception.getMessage()));
         }
         finally
         {
@@ -409,16 +404,30 @@ public class Utility
                 }
                 if (process != null && process.isAlive())
                 {
-                    process.destroy();
-
-                    process.waitFor(5, java.util.concurrent.TimeUnit.SECONDS);
+                    process.destroyForcibly();
                 }
             }
-            catch (Exception e)
+            catch (Exception exception)
             {
-                LOGGER.error("Error cleaning up SSH plugin process: {}", e.getMessage());
+                LOGGER.error("Error cleaning up SSH plugin process: {}", exception.getMessage());
             }
         }
         return results;
+    }
+
+    private static boolean isPortOpen(String ip, int port)
+    {
+        try (var socket = new Socket())
+        {
+            // Set connection timeout to 1 second (1000ms) to match nc -w 1 behavior
+            socket.connect(new InetSocketAddress(ip, port), 1000);
+
+            return true;
+        }
+        catch (Exception exception)
+        {
+            // Connection failed - port is closed or unreachable
+            return false;
+        }
     }
 }

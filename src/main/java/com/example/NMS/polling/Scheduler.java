@@ -30,7 +30,7 @@ public class Scheduler extends AbstractVerticle
         try
         {
             // Initialize the metric cache
-            MetricCache.init();
+            MetricCache.getInstance().init();
 
             // Set up periodic timer for scheduling (convert seconds to milliseconds)
             vertx.setPeriodic(TIMER_INTERVAL_SECONDS * 1000, this::handleScheduling);

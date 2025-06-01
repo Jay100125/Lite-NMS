@@ -1,7 +1,6 @@
 package com.example.NMS.cache;
 
-import com.example.NMS.service.QueryProcessor;
-import io.vertx.core.json.JsonArray;
+import com.example.NMS.utility.DBUtils;
 import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,8 +18,23 @@ import static com.example.NMS.constant.QueryConstant.GET_ACTIVE_METRIC_JOBS;
  * Stores metric job details (e.g., metric ID, provisioning job ID, IP, port, credentials) in a thread-safe
  * ConcurrentHashMap and handles initialization, updates, and polling intervals for metric collection.
  */
-public class MetricCache
+public class MetricCache implements cache
 {
+
+    private static MetricCache instance;
+
+    private MetricCache(){}
+
+    public static MetricCache getInstance()
+    {
+        if(instance == null)
+        {
+            instance =  new MetricCache();
+        }
+
+        return instance;
+    }
+
     private static final Logger LOGGER = LoggerFactory.getLogger(MetricCache.class);
 
     // Thread-safe cache of metric jobs: metric_id -> JsonObject
@@ -29,12 +43,12 @@ public class MetricCache
     // Flag to ensure cache is initialized only once
     private static boolean isCacheInitialized = false;
 
-  /**
-   * Initializes the cache by querying the database for enabled metric jobs.
-   * Populates the cache with metric details, including IP, port, and credentials, and sets the initialization flag.
-   * Skips initialization if the cache is already populated.
-   */
-    public static void init()
+    /**
+     * Initializes the cache by querying the database for enabled metric jobs.
+     * Populates the cache with metric details, including IP, port, and credentials, and sets the initialization flag.
+     * Skips initialization if the cache is already populated.
+     */
+    public void init()
     {
         if (isCacheInitialized)
         {
@@ -44,88 +58,53 @@ public class MetricCache
         }
 
         // Execute the query and populate the cache
-        QueryProcessor.executeQuery(new JsonObject().put(QUERY, GET_ACTIVE_METRIC_JOBS))
-          .onComplete(queryResult ->
-          {
-              if(queryResult.succeeded())
-              {
-                  var result = queryResult.result();
+        DBUtils.executeQuery(new JsonObject().put(QUERY, GET_ACTIVE_METRIC_JOBS))
+            .onComplete(queryResult ->
+            {
+                if(queryResult.succeeded())
+                {
+                    var result = queryResult.result();
 
-                  updateCacheFromQueryResult(result);
+                    result.forEach(entry ->
+                    {
+                        var metric = (JsonObject) entry;
 
-                  isCacheInitialized = true;
+                        var metricId = metric.getLong(METRIC_ID);
 
-                  LOGGER.info("Initial cache populated with {} jobs", metricJobCache.size());
-              }
-              else
-              {
-                  var error = queryResult.cause();
+                        var job = new JsonObject()
+                            .put(METRIC_ID, metricId)
+                            .put(PROVISIONING_JOB_ID, metric.getLong(PROVISIONING_JOB_ID))
+                            .put(METRIC_NAME, metric.getString(METRIC_NAME))
+                            .put(IP, metric.getString(IP))
+                            .put(PORT, metric.getInteger(PORT))
+                            .put(PROTOCOL, metric.getString(PROTOCOL))
+                            .put(CRED_DATA, metric.getJsonObject(CRED_DATA))
+                            .put(ORIGINAL_INTERVAL, metric.getInteger(POLLING_INTERVAL))
+                            .put(REMAINING_TIME, metric.getInteger(POLLING_INTERVAL))
+                            .put(IS_ENABLED, metric.getBoolean(IS_ENABLED));
 
-                  LOGGER.error("Initial cache refresh failed: {}", error.getMessage());
-              }
-          });
+
+                        metricJobCache.put(metricId, job);
+                    });
+
+                    isCacheInitialized = true;
+
+                    LOGGER.info("Initial cache populated with {} jobs", metricJobCache.size());
+                }
+                else
+                {
+                    var error = queryResult.cause();
+
+                    LOGGER.error("Initial cache refresh failed: {}", error.getMessage());
+                }
+            });
     }
 
-  /**
-   * Updates the cache with metric job details from query results.
-   * Each result entry contains metric ID, provisioning job ID, metric name, polling interval,
-   * IP, port, and credential data.
-   *
-   * @param results The JSON array of query results.
-   */
-    private static void updateCacheFromQueryResult(JsonArray results)
+    public void insert(JsonObject job)
     {
-        results.forEach(entry ->
-        {
-            var metric = (JsonObject) entry;
+        metricJobCache.put(job.getLong(METRIC_ID), job);
 
-            var metricId = metric.getLong(METRIC_ID);
-
-            var job = new JsonObject()
-              .put(METRIC_ID, metricId)
-              .put(PROVISIONING_JOB_ID, metric.getLong(PROVISIONING_JOB_ID))
-              .put(METRIC_NAME, metric.getString(METRIC_NAME))
-              .put(IP, metric.getString(IP))
-              .put(PORT, metric.getInteger(PORT))
-              .put(CRED_DATA, metric.getJsonObject(CRED_DATA))
-              .put(ORIGINAL_INTERVAL, metric.getInteger(POLLING_INTERVAL))
-              .put(REMAINING_TIME, metric.getInteger(POLLING_INTERVAL))
-              .put(IS_ENABLED, metric.getBoolean(IS_ENABLED));
-
-
-            metricJobCache.put(metricId, job);
-        });
-    }
-
-
-  /**
-   * Adds a new metric job to the cache.
-   * Stores the job details, including metric ID, provisioning job ID, metric name, IP, port,
-   * credentials, and polling interval.
-   *
-   * @param metricId         The unique ID of the metric.
-   * @param provisioningJobId The associated provisioning job ID.
-   * @param metricName       The name of the metric (e.g., "cpu", "memory").
-   * @param pollingInterval  The polling interval in seconds.
-   * @param ip        The IP address of the target device.
-   * @param port             The port for communication.
-   * @param credData         The credential data for authentication.
-   */
-    public static void addMetricJob(Long metricId, Long provisioningJobId, String metricName, int pollingInterval, String ip, int port, JsonObject credData)
-    {
-        var job = new JsonObject()
-          .put(METRIC_ID, metricId)
-          .put(PROVISIONING_JOB_ID, provisioningJobId)
-          .put(METRIC_NAME, metricName)
-          .put(IP, ip)
-          .put(PORT, port)
-          .put(CRED_DATA, credData)
-          .put(ORIGINAL_INTERVAL, pollingInterval)
-          .put(REMAINING_TIME, pollingInterval);
-
-        metricJobCache.put(metricId, job);
-
-        LOGGER.info("Added metric job to cache: metric_id={}", metricId);
+        LOGGER.info("Added metric job to cache: metric_id={}", job.getLong(METRIC_ID));
     }
 
 
@@ -134,12 +113,12 @@ public class MetricCache
      *
      * @param provisioningJobId The provisioning job ID whose metric jobs should be removed.
      */
-    public static void removeMetricJobsByProvisioningJobId(Long provisioningJobId)
+    public void delete(Long provisioningJobId)
     {
         var removedIds = metricJobCache.entrySet().stream()
-          .filter(entry -> provisioningJobId.equals(entry.getValue().getLong(PROVISIONING_JOB_ID)))
-          .map(Map.Entry::getKey)
-          .toList();
+            .filter(entry -> provisioningJobId.equals(entry.getValue().getLong(PROVISIONING_JOB_ID)))
+            .map(Map.Entry::getKey)
+            .toList();
 
         removedIds.forEach(metricJobCache::remove);
 
@@ -149,43 +128,21 @@ public class MetricCache
         }
     }
 
-    /**
-     * Updates an existing metric job in the cache or removes it if disabled.
-     * Stores updated details, including metric name, IP, port, credentials, and polling interval.
-     *
-     * @param metricId         The unique ID of the metric.
-     * @param provisioningJobId The associated provisioning job ID.
-     * @param metricName       The name of the metric.
-     * @param pollingInterval  The polling interval in seconds.
-     * @param ip        The IP address of the target device.
-     * @param port             The port for communication.
-     * @param credData         The credential data for authentication.
-     * @param isEnabled        Whether the metric is enabled.
-     */
-    public static void updateMetricJob(Long metricId, Long provisioningJobId, String metricName, int pollingInterval, String ip, int port, JsonObject credData, Boolean isEnabled)
-    {
-        var job = new JsonObject()
-          .put(METRIC_ID, metricId)
-          .put(PROVISIONING_JOB_ID, provisioningJobId)
-          .put(METRIC_NAME, metricName)
-          .put(IP, ip)
-          .put(PORT, port)
-          .put(CRED_DATA, credData)
-          .put(ORIGINAL_INTERVAL, pollingInterval)
-          .put(REMAINING_TIME, pollingInterval)
-          .put(IS_ENABLED, isEnabled);
 
-        if (isEnabled)
+    public void update(JsonObject job)
+    {
+
+        if (job.getBoolean(IS_ENABLED))
         {
-            metricJobCache.put(metricId, job);
+            metricJobCache.put(job.getLong(METRIC_ID), job);
         }
         else
         {
-            metricJobCache.remove(metricId);
+            metricJobCache.remove(job.getLong(METRIC_ID));
         }
 
 
-       LOGGER.info("Updated metric job in cache: metric_id={}", metricId);
+        LOGGER.info("Updated metric job in cache: metric_id={}", job.getLong(METRIC_ID));
     }
 
 
