@@ -1,0 +1,343 @@
+{
+  "endpoints": [
+    {
+      "name": "Authentication",
+      "method": "POST",
+      "url": "/api/auth/login",
+      "input": {
+        "username": {"type": "string", "required": true},
+        "password": {"type": "string", "required": true}
+      },
+      "output": {
+        "success": {
+          "status_code": 200,
+          "status": "success",
+          "message": "Login successful",
+          "result": [
+            {
+              "token": "string",
+              "user_id": "number",
+              "username": "string"
+            }
+          ]
+        },
+        "error": {
+          "status_code": 401,
+          "status": "failure",
+          "error": "string"
+        }
+      }
+    },
+    {
+      "name": "Create Credential",
+      "method": "POST",
+      "url": "/api/credentials",
+      "input": {
+       {
+           "credential_name": "test23800",
+           "protocol" : "ssh",
+           "cred_data": {
+               "user": "nishant",
+               "password": "nishandt"
+           }
+       }
+      },
+      "output": {
+        "success": {
+          "status_code": 201,
+          "status": "success",
+          "message": "Credential created",
+          "result": [
+            {
+              "credential_id": "number",
+              "username": "string",
+              "description": "string",
+              "created_at": "string"
+            }
+          ]
+        },
+        "error": {
+          "status_code": 400,
+          "status": "failure",
+          "error": "string"
+        }
+      }
+    },
+    {
+      "name": "List Credentials",
+      "method": "GET",
+      "url": "/api/credentials",
+      "input": {},
+      "output": {
+        "success": {
+          "status_code": 200,
+          "status": "success",
+          "message": "Credentials retrieved",
+          "result": [
+            {
+              "credential_id": "number",
+              "username": "string",
+              "description": "string",
+              "created_at": "string"
+            }
+          ]
+        },
+        "error": {
+          "status_code": 404,
+          "status": "failure",
+          "error": "string"
+        }
+      }
+    },
+    {
+      "name": "Update Credential",
+      "method": "PUT",
+      "url": "/api/credentials/:id",
+      "input": {
+        "path_params": {
+          "id": {"type": "number", "required": true}
+        },
+        "body": {
+          "username": {"type": "string", "required": false},
+          "password": {"type": "string", "required": false},
+          "description": {"type": "string", "required": false}
+        }
+      },
+      "output": {
+        "success": {
+          "status_code": 200,
+          "status": "success",
+          "message": "Credential updated",
+          "result": [
+            {
+              "credential_id": "number",
+              "username": "string",
+              "description": "string",
+              "updated_at": "string"
+            }
+          ]
+        },
+        "error": {
+          "status_code": 404,
+          "status": "failure",
+          "error": "string"
+        }
+      }
+    },
+    {
+      "name": "Delete Credential",
+      "method": "DELETE",
+      "url": "/api/credentials/:id",
+      "input": {
+        "path_params": {
+          "id": {"type": "number", "required": true}
+        }
+      },
+      "output": {
+        "success": {
+          "status_code": 200,
+          "status": "success",
+          "message": "Credential deleted",
+          "result": []
+        },
+        "error": {
+          "status_code": 404,
+          "status": "failure",
+          "error": "string"
+        }
+      }
+    },
+    {
+      "name": "Create Discovery Profile",
+      "method": "POST",
+      "url": "/api/discovery/profiles",
+      "input": {
+        "discovery_profile_name":{"string", "required": true},
+        "ip": {"type": "string", "required": true},
+        "port": {"type": "number", "required": true},
+        "credential_ids": {"type": "array", "items": "number", "required": true}
+      },
+      "output": {
+        "success": {
+          "status_code": 201,
+          "status": "success",
+          "message": "Discovery profile created",
+          "result": [
+            {
+              "discovery_id": "number",
+              "ip": "string",
+              "port": "number",
+              "status": "pending"
+            }
+          ]
+        },
+        "error": {
+          "status_code": 400,
+          "status": "failure",
+          "error": "string"
+        }
+      }
+    },
+    {
+      "name": "Run Discovery",
+      "method": "POST",
+      "url": "/api/discovery/profiles/:id/run",
+      "input": {
+        "path_params": {
+          "id": {"type": "number", "required": true}
+        }
+      },
+      "output": {
+        "success": {
+          "status_code": 200,
+          "status": "success",
+          "message": "Discovery started for profile ID <id>",
+          "result": [
+            {
+              "discovery_id": "number",
+              "status": "running"
+            }
+          ]
+        },
+        "error": {
+          "status_code": 404,
+          "status": "failure",
+          "error": "string"
+        }
+      }
+    },
+    {
+      "name": "Get Discovery Results",
+      "method": "GET",
+      "url": "/api/discovery/profiles/:id/results",
+      "input": {
+        "path_params": {
+          "id": {"type": "number", "required": true}
+        }
+      },
+      "output": {
+        "success": {
+          "status_code": 200,
+          "status": "success",
+          "message": "Discovery results retrieved",
+          "result": [
+            {
+              "ip": "string",
+              "port": "number",
+              "reachable": "boolean",
+              "port_open": "boolean",
+              "result": "string",
+              "message": "string",
+              "credential_profile_id": "number",
+              "uname": "string"
+            }
+          ]
+        },
+        "error": {
+          "status_code": 404,
+          "status": "failure",
+          "error": "string"
+        }
+      }
+    },
+    {
+      "name": "Create Provisioning Jobs",
+      "method": "POST",
+      "url": "/api/provisioning/jobs",
+      "input": {
+        "discovery_id": {"type": "number", "required": true},
+        "selected_ips": {"type": "array", "items": "string", "required": true}
+      },
+      "output": {
+        "success": {
+          "status_code": 201,
+          "status": "success",
+          "message": "Provisioning jobs created",
+          "result": [
+            {
+              "valid_ips": ["string"],
+              "invalid_ips": ["string"],
+              "inserted_records": [
+                {
+                  "ip": "string",
+                  "status": "created",
+                  "provisioning_job_id": "number",
+                  "metric_id": "number",
+                  "metric_name": "string"
+                }
+              ]
+            }
+          ]
+        },
+        "error": {
+          "status_code": 400,
+          "status": "failure",
+          "error": "string"
+        }
+      }
+    },
+    {
+      "name": "Get Polling Results",
+      "method": "GET",
+      "url": "/api/polling/results/:provisioning_job_id",
+      "input": {
+        "path_params": {
+          "provisioning_job_id": {"type": "number", "required": true}
+        }
+      },
+      "output": {
+        "success": {
+          "status_code": 200,
+          "status": "success",
+          "message": "Polling results retrieved",
+          "result": [
+            {
+              "provisioning_job_id": "number",
+              "metric_name": "string",
+              "data": "object"
+            }
+          ]
+        },
+        "error": {
+          "status_code": 404,
+          "status": "failure",
+          "error": "string"
+        }
+      }
+    },
+    {
+      "name": "List Provisioning Jobs",
+      "method": "GET",
+      "url": "/api/provisioning/jobs",
+      "input": {},
+      "output": {
+        "success": {
+          "status_code": 200,
+          "status": "success",
+          "message": "Provisioning jobs retrieved",
+          "result": [
+            {
+              "provisioning_job_id": "number",
+              "discovery_id": "number",
+              "ip": "string",
+              "port": "number",
+              "status": "string",
+              "metrics": [
+                {
+                  "metric_id": "number",
+                  "metric_name": "string",
+                  "polling_interval": "number"
+                }
+              ]
+            }
+          ]
+        },
+        "error": {
+          "status_code": 404,
+          "status": "failure",
+          "error": "string"
+        }
+      }
+    }
+  ]
+}

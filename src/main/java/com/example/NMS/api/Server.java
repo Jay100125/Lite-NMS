@@ -6,15 +6,20 @@ import com.example.NMS.api.handlers.Discovery;
 import com.example.NMS.api.handlers.Provision;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
+import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.auth.PubSecKeyOptions;
 import io.vertx.ext.auth.jwt.JWTAuth;
 import io.vertx.ext.auth.jwt.JWTAuthOptions;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.handler.BodyHandler;
+import io.vertx.ext.web.handler.CorsHandler;
 import io.vertx.ext.web.handler.JWTAuthHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.HashSet;
+import java.util.Set;
 
 import static com.example.NMS.constant.Constant.*;
 
@@ -55,6 +60,22 @@ public class Server extends AbstractVerticle
         var credentialRoute = Router.router(vertx);
 
         var provisionRoute = Router.router(vertx);
+
+        router.route("/api/*").handler(CorsHandler.create()
+            .addOrigin("http://localhost:3000") // Your frontend URL
+            .allowCredentials(true)
+            .allowedMethod(io.vertx.core.http.HttpMethod.GET)
+            .allowedMethod(io.vertx.core.http.HttpMethod.POST)
+            .allowedMethod(io.vertx.core.http.HttpMethod.PUT)
+            .allowedMethod(io.vertx.core.http.HttpMethod.DELETE)
+            .allowedMethod(io.vertx.core.http.HttpMethod.OPTIONS)
+            .allowedHeader("Authorization")
+            .allowedHeader("Content-Type")
+            .allowedHeader("Access-Control-Allow-Origin")
+            .allowedHeader("Access-Control-Allow-Credentials")
+            .allowedHeader("Access-Control-Allow-Headers")
+            .allowedHeader("Access-Control-Allow-Methods")
+        );
 
         router.route("/api/*").handler(BodyHandler.create());
 

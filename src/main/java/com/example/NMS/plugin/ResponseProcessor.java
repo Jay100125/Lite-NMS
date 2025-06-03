@@ -38,11 +38,9 @@ public class ResponseProcessor extends AbstractVerticle
 
         var results = data.getJsonArray("results");
 
-        var provisioningJobId = data.getLong(PROVISIONING_JOB_ID, -1L);
-
         if (results == null || results.isEmpty())
         {
-            LOGGER.info("No polling results to store for provisioning_job_id={}", provisioningJobId);
+            LOGGER.info("No polling results to store ");
 
             return;
         }
@@ -55,7 +53,7 @@ public class ResponseProcessor extends AbstractVerticle
 
             if (SUCCESS.equals(resultObj.getString(STATUS)))
             {
-                var jobId = resultObj.getLong(PROVISIONING_JOB_ID, provisioningJobId);
+                var jobId = resultObj.getLong(PROVISIONING_JOB_ID);
 
                 var metricsData = resultObj.getJsonObject("data");
 

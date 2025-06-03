@@ -9,11 +9,9 @@ import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.HashMap;
 import java.util.List;
 
 import static com.example.NMS.constant.Constant.*;
-import static com.example.NMS.utility.DBUtils.executeBatchQuery;
 import static com.example.NMS.utility.DBUtils.executeQuery;
 import static com.example.NMS.utility.Utility.*;
 
@@ -144,16 +142,6 @@ public class Discovery extends AbstractVerticle
 
         LOGGER.info("Discovery profile: {}", ipInput);
 
-//        return resolveIps(ipInput)
-//            .compose(ips -> checkReach(ips, port))
-//            .compose(reachResults -> handleConnection(reachResults, credentials, port))
-//            .compose(sshResult ->
-//            {
-//                var reachabilityResults = sshResult.getJsonArray(REACHABILITY_RESULTS);
-//                var discoveryResults = sshResult.getJsonArray(DISCOVERY_RESULTS);
-//                return storeDiscoveryResults(discoveryResults, id)
-//                    .map(reachabilityResults);
-//            });
         return resolveIps(ipInput)
             .compose(ips -> checkReach(ips, port))
             .compose(reachResults -> handleConnection(reachResults, credentials, port, id));
@@ -193,8 +181,6 @@ public class Discovery extends AbstractVerticle
      */
     private Future<JsonArray> handleConnection(JsonArray reachResults, JsonArray credentials, int port, long discoveryId)
     {
-        var reachableIps = new JsonArray();
-
         var discoveryResults = new JsonArray();
 
         var targets = new JsonArray();
@@ -205,7 +191,6 @@ public class Discovery extends AbstractVerticle
 
         for (int j = 0; j < credentials.size(); j++)
         {
-
             var cred = credentials.getJsonObject(j);
 
             credentialProfiles.add(new JsonObject()
@@ -239,6 +224,7 @@ public class Discovery extends AbstractVerticle
             else
             {
                 var errorMsg = up ? "Port closed" : "Device unreachable";
+
                 discoveryResults.add(new JsonObject()
                     .put(IP, obj.getString(IP))
                     .put(PORT, port)
@@ -253,7 +239,9 @@ public class Discovery extends AbstractVerticle
             var storageMessage = new JsonObject()
                 .put("results", discoveryResults)
                 .put(ID, discoveryId);
+
             vertx.eventBus().send(STORAGE_DISCOVERY_RESULTS, storageMessage);
+
             LOGGER.info("Sent unreachable/port-closed results to {}: {}", STORAGE_DISCOVERY_RESULTS, storageMessage.encodePrettily());
         }
 
@@ -266,116 +254,9 @@ public class Discovery extends AbstractVerticle
 
         LOGGER.info("Plugin input: {}", pluginInput.encodePrettily());
 
-
-//        // Execute SSH plugin
-//        return vertx.executeBlocking(() -> spawnPlugin(pluginInput), false)
-//            .compose(pluginResults ->
-//            {
-//                var processedIps = new HashMap<String, Boolean>();
-//
-//                for (var j = 0; j < pluginResults.size(); j++)
-//                {
-//                    var res = pluginResults.getJsonObject(j);
-//
-//                    var ip = res.getString(IP);
-//
-//                    var status = res.getString(STATUS);
-//
-//                    if (processedIps.getOrDefault(ip, false))
-//                    {
-//                        continue;
-//                    }
-//                    // Find the corresponding reachResults entry
-//                    var reachObj = reachResults.getJsonObject(j);
-//
-//                    Long successfulCredId = null;
-//
-//                    String uname = null;
-//
-//                    String errorMsg;
-//
-//                    if ("success".equals(status))
-//                    {
-//                        reachableIps.add(ip);
-//
-//                        successfulCredId = res.getLong("credential_id");
-//
-//                        uname = res.getJsonObject("data").getString("uname");
-//
-//                        errorMsg = null;
-//
-//                        processedIps.put(ip, true);
-//                    }
-//                    else
-//                    {
-//                        errorMsg = res.getString("error");
-//                    }
-//
-//                    if (!processedIps.getOrDefault(ip, false) || "success".equals(status))
-//                    {
-//                        discoveryResults.add(new JsonObject()
-//                            .put(IP, ip)
-//                            .put(PORT, port)
-//                            .put(RESULT, errorMsg == null ? "completed" : "failed")
-//                            .put(MESSAGE, errorMsg == null ? uname : errorMsg)
-//                            .put(CREDENTIAL_PROFILE_ID, successfulCredId));
-//                    }
-//
-//                    reachObj.put("uname", uname);
-//                    reachObj.put("ssh_error", errorMsg);
-//                    reachObj.put(CREDENTIAL_PROFILE_ID, successfulCredId);
-//                }
-//
-//                return Future.succeededFuture(new JsonObject()
-//                    .put(REACHABILITY_RESULTS, reachResults)
-//                    .put(REACHABLEIPS, reachableIps)
-//                    .put(DISCOVERY_RESULTS, discoveryResults));
-//            });
         vertx.eventBus().send(PLUGIN_EXECUTE, pluginInput);
 
         // Return reachability results as the verticle no longer waits for plugin results
         return Future.succeededFuture(reachResults);
-    }
-
-    /**
-     * Stores discovery results in the database.
-     * Inserts or updates discovery result records with IP, port, status, message, and credential ID.
-     *
-     * @param discoveryResults The JSON array of discovery results.
-     * @param discoveryId      The discovery profile ID.
-     * @return A Future indicating success or failure.
-     */
-    private Future<Void> storeDiscoveryResults(JsonArray discoveryResults, long discoveryId)
-    {
-        var batchParams = new JsonArray();
-
-        for (var i = 0; i < discoveryResults.size(); i++)
-        {
-            var result = discoveryResults.getJsonObject(i);
-
-            batchParams.add(new JsonArray()
-                .add(discoveryId)
-                .add(result.getString(IP))
-                .add(result.getInteger(PORT))
-                .add(result.getString(RESULT))
-                .add(result.getString(MESSAGE))
-                .add(result.getValue(CREDENTIAL_PROFILE_ID)));
-        }
-
-        var message = new JsonObject()
-                            .put(QUERY, QueryConstant.INSERT_DISCOVERY_RESULT)
-                            .put(BATCHPARAMS, batchParams);
-
-        return executeBatchQuery(message)
-            .compose(result ->
-            {
-                if (!result.isEmpty())
-                {
-                    LOGGER.info("Successfully inserted/updated {} discovery results", batchParams.size());
-
-                    return Future.succeededFuture();
-                }
-                return Future.failedFuture("Batch insert failed: " + result);
-            });
     }
 }

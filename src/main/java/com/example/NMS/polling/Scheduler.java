@@ -4,11 +4,16 @@ import com.example.NMS.cache.MetricCache;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static com.example.NMS.constant.Constant.POLLING_BATCH_PROCESS;
-import static com.example.NMS.constant.Constant.TIMER_INTERVAL_SECONDS;
+import java.util.ArrayList;
+import java.util.List;
+
+import static com.example.NMS.cache.MetricCache.metricJobCache;
+import static com.example.NMS.constant.Constant.*;
+import static com.example.NMS.constant.Constant.REMAINING_TIME;
 
 /**
  * Vert.x verticle for scheduling metric polling in Lite NMS.
@@ -56,7 +61,7 @@ public class Scheduler extends AbstractVerticle
     private void handleScheduling(Long timerId)
     {
         // Get metric jobs ready for polling
-        var jobsToPoll = MetricCache.handleTimer();
+        var jobsToPoll = handleTimer();
 
         if (!jobsToPoll.isEmpty())
         {
@@ -65,6 +70,43 @@ public class Scheduler extends AbstractVerticle
             // Send jobs to the event bus for batch processing
             vertx.eventBus().send(POLLING_BATCH_PROCESS, new JsonArray(jobsToPoll));
         }
+    }
+
+    /**
+     * Handles the polling timer by decrementing remaining times for all metric jobs.
+     * Returns a list of jobs ready to be polled (remaining time <= 0), resetting their intervals.
+     *
+     * @return A list of metric job JSON objects ready for polling.
+     */
+    public static List<JsonObject> handleTimer()
+    {
+        var jobsToPoll = new ArrayList<JsonObject>();
+
+        // Decrement remaining time and collect jobs ready to poll
+        metricJobCache.forEach((metricId, job) ->
+        {
+            var newRemainingTime = job.getInteger(REMAINING_TIME) - TIMER_INTERVAL_SECONDS;
+
+            if (newRemainingTime <= 0)
+            {
+                jobsToPoll.add(job);
+
+                // Reset remaining time to original interval
+                job.put(REMAINING_TIME, job.getInteger(ORIGINAL_INTERVAL));
+            }
+            else
+            {
+                // Update remaining time
+                job.put(REMAINING_TIME, newRemainingTime);
+            }
+        });
+
+        if (!jobsToPoll.isEmpty())
+        {
+            LOGGER.info("Found {} jobs to poll", jobsToPoll.size());
+        }
+
+        return jobsToPoll;
     }
 
 }

@@ -19,23 +19,27 @@ import static com.example.NMS.constant.Constant.*;
 /**
  * Vert.x verticle for executing the Lite NMS SSH plugin.
  * Listens for plugin execution requests on the event bus, runs the plugin process,
- * and forwards results to the StorageVerticle for database storage.
+ * and forwards results to the responseProcessor for database storage.
  */
 public class Plugin extends AbstractVerticle
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(Plugin.class);
 
     @Override
-    public void start(Promise<Void> startPromise) {
+    public void start(Promise<Void> startPromise)
+    {
         // Set up event bus consumer for plugin execution requests
-        vertx.eventBus().<JsonObject>localConsumer(PLUGIN_EXECUTE, message -> {
+        vertx.eventBus().<JsonObject>localConsumer(PLUGIN_EXECUTE, message ->
+        {
             var pluginJson = message.body();
+
             LOGGER.info("Received plugin execution request: {}", pluginJson.encodePrettily());
 
             executePlugin(pluginJson);
         });
 
         LOGGER.info("PluginVerticle deployed");
+
         startPromise.complete();
     }
 
@@ -46,14 +50,20 @@ public class Plugin extends AbstractVerticle
      *
      * @param pluginJson The JSON object containing the plugin configuration.
      */
-    private void executePlugin(JsonObject pluginJson) {
+    private void executePlugin(JsonObject pluginJson)
+    {
         var results = new JsonArray();
+
         Process process = null;
+
         BufferedReader stdInput = null;
+
         BufferedReader stdError = null;
+
         OutputStreamWriter stdOutput = null;
 
-        try {
+        try
+        {
             // Start the SSH plugin process
             var pb = new ProcessBuilder("./plugin/Lite_NMS_Plugin");
 
@@ -84,6 +94,8 @@ public class Plugin extends AbstractVerticle
                     var decoded = new String(decodedBytes, StandardCharsets.UTF_8);
 
                     results.add(new JsonObject(decoded));
+
+                    LOGGER.info("Decoded stdout line: {}", decoded);
                 }
                 catch (Exception exception)
                 {
@@ -157,17 +169,18 @@ public class Plugin extends AbstractVerticle
             var storageMessage = new JsonObject().put("results", results);
 
             LOGGER.info(storageMessage.encodePrettily());
-            if (POLLING.equals(requestType))
-            {
-                // Include provisioning_job_id for polling
-                if (!pluginJson.getJsonArray(TARGETS).isEmpty())
-                {
-                    storageMessage.put(PROVISIONING_JOB_ID, pluginJson.getJsonArray(TARGETS).getJsonObject(0).getLong(PROVISIONING_JOB_ID));
-                }
-            } else {
-                // Include discovery_id for discovery
-                storageMessage.put(ID, pluginJson.getLong(ID, -1L));
-            }
+
+//            if (POLLING.equals(requestType))
+//            {
+//                // Include provisioning_job_id for polling
+//                if (!pluginJson.getJsonArray(TARGETS).isEmpty())
+//                {
+////                    storageMessage.put(PROVISIONING_JOB_ID, pluginJson.getJsonArray(TARGETS).getJsonObject(0).getLong(PROVISIONING_JOB_ID));
+//                }
+//            } else {
+//                // Include discovery_id for discovery
+//                storageMessage.put(ID, pluginJson.getLong(ID, -1L));
+//            }
 
             vertx.eventBus().send(storageAddress, storageMessage);
 

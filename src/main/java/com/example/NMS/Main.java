@@ -34,9 +34,9 @@ public class Main
 
             .compose(response -> vertx.deployVerticle(Discovery.class.getName()))
 
-//            .compose(response -> vertx.deployVerticle(Scheduler.class.getName()))
-//
-//            .compose(response -> vertx.deployVerticle(Polling.class.getName()))
+            .compose(response -> vertx.deployVerticle(Scheduler.class.getName()))
+
+            .compose(response -> vertx.deployVerticle(Polling.class.getName()))
 
             .compose(response -> vertx.deployVerticle(Plugin.class.getName(),  new DeploymentOptions().setThreadingModel(ThreadingModel.WORKER)))
 

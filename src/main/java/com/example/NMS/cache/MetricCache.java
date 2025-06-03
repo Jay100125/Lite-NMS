@@ -38,7 +38,7 @@ public class MetricCache implements cache
     private static final Logger LOGGER = LoggerFactory.getLogger(MetricCache.class);
 
     // Thread-safe cache of metric jobs: metric_id -> JsonObject
-    private static final ConcurrentHashMap<Long, JsonObject> metricJobCache = new ConcurrentHashMap<>();
+    public static final ConcurrentHashMap<Long, JsonObject> metricJobCache = new ConcurrentHashMap<>();
 
     // Flag to ensure cache is initialized only once
     private static boolean isCacheInitialized = false;
@@ -146,40 +146,40 @@ public class MetricCache implements cache
     }
 
 
-    /**
-     * Handles the polling timer by decrementing remaining times for all metric jobs.
-     * Returns a list of jobs ready to be polled (remaining time <= 0), resetting their intervals.
-     *
-     * @return A list of metric job JSON objects ready for polling.
-     */
-    public static List<JsonObject> handleTimer()
-    {
-        var jobsToPoll = new ArrayList<JsonObject>();
-
-        // Decrement remaining time and collect jobs ready to poll
-        metricJobCache.forEach((metricId, job) ->
-        {
-            var newRemainingTime = job.getInteger(REMAINING_TIME) - TIMER_INTERVAL_SECONDS;
-
-            if (newRemainingTime <= 0)
-            {
-                jobsToPoll.add(job);
-
-                // Reset remaining time to original interval
-                job.put(REMAINING_TIME, job.getInteger(ORIGINAL_INTERVAL));
-            }
-            else
-            {
-                // Update remaining time
-                job.put(REMAINING_TIME, newRemainingTime);
-            }
-        });
-
-        if (!jobsToPoll.isEmpty())
-        {
-            LOGGER.info("Found {} jobs to poll", jobsToPoll.size());
-        }
-
-        return jobsToPoll;
-    }
+//    /**
+//     * Handles the polling timer by decrementing remaining times for all metric jobs.
+//     * Returns a list of jobs ready to be polled (remaining time <= 0), resetting their intervals.
+//     *
+//     * @return A list of metric job JSON objects ready for polling.
+//     */
+//    public static List<JsonObject> handleTimer()
+//    {
+//        var jobsToPoll = new ArrayList<JsonObject>();
+//
+//        // Decrement remaining time and collect jobs ready to poll
+//        metricJobCache.forEach((metricId, job) ->
+//        {
+//            var newRemainingTime = job.getInteger(REMAINING_TIME) - TIMER_INTERVAL_SECONDS;
+//
+//            if (newRemainingTime <= 0)
+//            {
+//                jobsToPoll.add(job);
+//
+//                // Reset remaining time to original interval
+//                job.put(REMAINING_TIME, job.getInteger(ORIGINAL_INTERVAL));
+//            }
+//            else
+//            {
+//                // Update remaining time
+//                job.put(REMAINING_TIME, newRemainingTime);
+//            }
+//        });
+//
+//        if (!jobsToPoll.isEmpty())
+//        {
+//            LOGGER.info("Found {} jobs to poll", jobsToPoll.size());
+//        }
+//
+//        return jobsToPoll;
+//    }
 }
