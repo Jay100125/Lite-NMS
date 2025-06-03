@@ -18,9 +18,14 @@ import static com.example.NMS.constant.QueryConstant.*;
  * This class provides REST-ful API endpoints to manage credential profiles, including validation of input data
  * and interaction with the database to store or retrieve credential information.
  */
-public class Credential
+public class Credential extends AbstractAPI
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(Credential.class);
+
+    public Credential()
+    {
+        super(LOGGER, "Credential"); // Pass logger and names to AbstractAPI
+    }
 
   /**
    * Initializes API routes for credential management endpoints.
@@ -34,11 +39,16 @@ public class Credential
 
         credentialRouter.patch("/api/credential/:id").handler(this::update);
 
-        credentialRouter.get("/api/credential").handler(this::getAll);
-
-        credentialRouter.get("/api/credential/:id").handler(this::getById);
-
-        credentialRouter.delete("/api/credential/:id").handler(this::delete);
+        // Use common methods from AbstractAPI via lambda
+        credentialRouter.get("/api/credential").handler(ctx ->
+            getAll(ctx, QueryConstant.GET_ALL_CREDENTIALS)
+        );
+        credentialRouter.get("/api/credential/:id").handler(ctx ->
+            getById(ctx, QueryConstant.GET_CREDENTIAL_BY_ID)
+        );
+        credentialRouter.delete("/api/credential/:id").handler(ctx ->
+            delete(ctx, QueryConstant.DELETE_CREDENTIAL)
+        );
     }
 
   /**
@@ -48,6 +58,7 @@ public class Credential
    *
    * @param context The routing context containing the HTTP request with credential data.
    */
+     @Override
     protected void create(RoutingContext context)
     {
         try
@@ -129,7 +140,8 @@ public class Credential
    *
    * @param context The routing context containing the HTTP request with credential ID and update data.
    */
-    private void update(RoutingContext context)
+     @Override
+     protected void update(RoutingContext context)
     {
         try
         {
@@ -213,158 +225,158 @@ public class Credential
         }
     }
 
-  /**
-   * Handles the GET request to fetch all credential profiles.
-   * Retrieves all credentials from the database and returns them in the response.
-   *
-   * @param context The routing context containing the HTTP request.
-   */
-    private void getAll(RoutingContext context)
-    {
-        LOGGER.info("Fetching all credential profiles");
-
-        // Prepare query to fetch all credentials
-        var getAllQuery = new JsonObject()
-            .put(QUERY, QueryConstant.GET_ALL_CREDENTIALS);
-
-        executeQuery(getAllQuery)
-            .onComplete(queryResult ->
-            {
-                if (queryResult.succeeded())
-                {
-                    var result = queryResult.result();
-
-                    if (!result.isEmpty())
-                    {
-                        APIUtils.sendSuccess(context,200,"Credential profiles", result);
-                    }
-                    else
-                    {
-                        APIUtils.sendError(context, 404, "No credentials found");
-                    }
-                }
-                else
-                {
-                    var error = queryResult.cause();
-
-                    LOGGER.error("Failed to fetch credentials: {}", error.getMessage());
-
-                    APIUtils.sendError(context, 500, "Database error: " + error.getMessage());
-                }
-            });
-    }
-
-  /**
-   * Handles the GET request to fetch a specific credential profile by its ID.
-   * Retrieves the credential from the database if it exists and returns it in the response.
-   *
-   * @param context The routing context containing the HTTP request with credential ID.
-   */
-    private void getById(RoutingContext context)
-    {
-        try
-        {
-            // Parse and validate credential ID from path parameter
-            var id = APIUtils.parseIdFromPath(context, ID);
-
-            if (id == -1)
-            {
-                return;
-            }
-
-            // Prepare query to fetch credential by ID
-            var getQuery = new JsonObject()
-              .put(QUERY, GET_CREDENTIAL_BY_ID)
-              .put(PARAMS, new JsonArray().add(id));
-
-            executeQuery(getQuery)
-                .onComplete(queryResult ->
-                {
-                    if (queryResult.succeeded())
-                    {
-                        var result = queryResult.result();
-
-                        if (!result.isEmpty())
-                        {
-                            APIUtils.sendSuccess(context, 200, "Credential profile for current Id",result);
-                        }
-                        else
-                        {
-                            APIUtils.sendError(context, 404, "Credential not found");
-                        }
-                    }
-                    else
-                    {
-                        var error = queryResult.cause();
-
-                        LOGGER.error("Failed to fetch credential {}: {}", id, error.getMessage());
-
-                        APIUtils.sendError(context, 500, "Database error: " + error.getMessage());
-                    }
-                });
-        }
-        catch (Exception exception)
-        {
-            LOGGER.error("Unexpected error while fetching credential: {}", exception.getMessage());
-
-            APIUtils.sendError(context, 500, "Unexpected error: " + exception.getMessage());
-        }
-    }
-
-  /**
-   * Handles the DELETE request to remove an SSH credential profile by its ID.
-   * Deletes the credential from the database if it exists and returns a success response.
-   *
-   * @param context The routing context containing the HTTP request with credential ID.
-   */
-    private void delete(RoutingContext context)
-    {
-        try
-        {
-            // Parse and validate credential ID from path parameter
-            var id = APIUtils.parseIdFromPath(context, ID);
-
-            if (id == -1)
-            {
-                return;
-            }
-
-            // Prepare query to delete credential by ID
-            var deleteQuery = new JsonObject()
-              .put(QUERY, DELETE_CREDENTIAL)
-              .put(PARAMS, new JsonArray().add(id));
-
-            executeQuery(deleteQuery)
-              .onComplete(queryResult ->
-              {
-                  if (queryResult.succeeded())
-                  {
-                      var result = queryResult.result();
-
-                      if (!result.isEmpty())
-                      {
-                          APIUtils.sendSuccess(context, 200,"deleted credential profile", result);
-                      }
-                      else
-                      {
-                          APIUtils.sendError(context, 404, "Credential not found");
-                      }
-                  }
-                  else
-                  {
-                      var error = queryResult.cause();
-
-                      LOGGER.error("Failed to delete credential {}: {}", id, error.getMessage());
-
-                      APIUtils.sendError(context, 500, "Database error: " + error.getMessage());
-                  }
-              });
-        }
-        catch (Exception exception)
-        {
-            LOGGER.error("Unexpected error while deleting credential: {}", exception.getMessage());
-
-            APIUtils.sendError(context, 500, "Unexpected error: " + exception.getMessage());
-        }
-    }
+//  /**
+//   * Handles the GET request to fetch all credential profiles.
+//   * Retrieves all credentials from the database and returns them in the response.
+//   *
+//   * @param context The routing context containing the HTTP request.
+//   */
+//    private void getAll(RoutingContext context)
+//    {
+//        LOGGER.info("Fetching all credential profiles");
+//
+//        // Prepare query to fetch all credentials
+//        var getAllQuery = new JsonObject()
+//            .put(QUERY, QueryConstant.GET_ALL_CREDENTIALS);
+//
+//        executeQuery(getAllQuery)
+//            .onComplete(queryResult ->
+//            {
+//                if (queryResult.succeeded())
+//                {
+//                    var result = queryResult.result();
+//
+//                    if (!result.isEmpty())
+//                    {
+//                        APIUtils.sendSuccess(context,200,"Credential profiles", result);
+//                    }
+//                    else
+//                    {
+//                        APIUtils.sendError(context, 404, "No credentials found");
+//                    }
+//                }
+//                else
+//                {
+//                    var error = queryResult.cause();
+//
+//                    LOGGER.error("Failed to fetch credentials: {}", error.getMessage());
+//
+//                    APIUtils.sendError(context, 500, "Database error: " + error.getMessage());
+//                }
+//            });
+//    }
+//
+//  /**
+//   * Handles the GET request to fetch a specific credential profile by its ID.
+//   * Retrieves the credential from the database if it exists and returns it in the response.
+//   *
+//   * @param context The routing context containing the HTTP request with credential ID.
+//   */
+//    private void getById(RoutingContext context)
+//    {
+//        try
+//        {
+//            // Parse and validate credential ID from path parameter
+//            var id = APIUtils.parseIdFromPath(context, ID);
+//
+//            if (id == -1)
+//            {
+//                return;
+//            }
+//
+//            // Prepare query to fetch credential by ID
+//            var getQuery = new JsonObject()
+//              .put(QUERY, GET_CREDENTIAL_BY_ID)
+//              .put(PARAMS, new JsonArray().add(id));
+//
+//            executeQuery(getQuery)
+//                .onComplete(queryResult ->
+//                {
+//                    if (queryResult.succeeded())
+//                    {
+//                        var result = queryResult.result();
+//
+//                        if (!result.isEmpty())
+//                        {
+//                            APIUtils.sendSuccess(context, 200, "Credential profile for current Id",result);
+//                        }
+//                        else
+//                        {
+//                            APIUtils.sendError(context, 404, "Credential not found");
+//                        }
+//                    }
+//                    else
+//                    {
+//                        var error = queryResult.cause();
+//
+//                        LOGGER.error("Failed to fetch credential {}: {}", id, error.getMessage());
+//
+//                        APIUtils.sendError(context, 500, "Database error: " + error.getMessage());
+//                    }
+//                });
+//        }
+//        catch (Exception exception)
+//        {
+//            LOGGER.error("Unexpected error while fetching credential: {}", exception.getMessage());
+//
+//            APIUtils.sendError(context, 500, "Unexpected error: " + exception.getMessage());
+//        }
+//    }
+//
+//  /**
+//   * Handles the DELETE request to remove an SSH credential profile by its ID.
+//   * Deletes the credential from the database if it exists and returns a success response.
+//   *
+//   * @param context The routing context containing the HTTP request with credential ID.
+//   */
+//    private void delete(RoutingContext context)
+//    {
+//        try
+//        {
+//            // Parse and validate credential ID from path parameter
+//            var id = APIUtils.parseIdFromPath(context, ID);
+//
+//            if (id == -1)
+//            {
+//                return;
+//            }
+//
+//            // Prepare query to delete credential by ID
+//            var deleteQuery = new JsonObject()
+//              .put(QUERY, DELETE_CREDENTIAL)
+//              .put(PARAMS, new JsonArray().add(id));
+//
+//            executeQuery(deleteQuery)
+//              .onComplete(queryResult ->
+//              {
+//                  if (queryResult.succeeded())
+//                  {
+//                      var result = queryResult.result();
+//
+//                      if (!result.isEmpty())
+//                      {
+//                          APIUtils.sendSuccess(context, 200,"deleted credential profile", result);
+//                      }
+//                      else
+//                      {
+//                          APIUtils.sendError(context, 404, "Credential not found");
+//                      }
+//                  }
+//                  else
+//                  {
+//                      var error = queryResult.cause();
+//
+//                      LOGGER.error("Failed to delete credential {}: {}", id, error.getMessage());
+//
+//                      APIUtils.sendError(context, 500, "Database error: " + error.getMessage());
+//                  }
+//              });
+//        }
+//        catch (Exception exception)
+//        {
+//            LOGGER.error("Unexpected error while deleting credential: {}", exception.getMessage());
+//
+//            APIUtils.sendError(context, 500, "Unexpected error: " + exception.getMessage());
+//        }
+//    }
 }

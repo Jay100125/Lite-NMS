@@ -106,7 +106,7 @@ public class Constant {
 
     public static final String POLLING = "polling";
 
-    public static final String CREDENTIALS = "credentials";
+    public static final String CREDENTIAL_PROFILES = "credential_profiles";
 
     public static final String TARGETS = "targets";
 

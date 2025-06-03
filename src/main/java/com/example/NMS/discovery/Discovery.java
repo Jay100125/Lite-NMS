@@ -214,10 +214,11 @@ public class Discovery extends AbstractVerticle
                 // Add target with credential_profiles
                 var target = new JsonObject()
                     .put(IP, obj.getString(IP))
-                    .put(PROTOCOL, "ssh") // Assuming SSH from credentials
+                    .put(PROTOCOL, "ssh")
                     .put(PORT, port)
-                    .put("credential_profiles", credentialProfiles)
-                    .put(PLUGIN_TYPE, LINUX);
+                    .put(CREDENTIAL_PROFILES, credentialProfiles)
+                    .put(PLUGIN_TYPE, LINUX)
+                    .put("discovery_id",discoveryId);
 
                 targets.add(target);
             }
@@ -230,6 +231,7 @@ public class Discovery extends AbstractVerticle
                     .put(PORT, port)
                     .put("status", FAILURE)
                     .put("result", errorMsg)
+                    .put("discovery_id", discoveryId)
                     .put("credential_id", null));
             }
         }

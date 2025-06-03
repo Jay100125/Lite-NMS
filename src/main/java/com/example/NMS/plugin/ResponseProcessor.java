@@ -89,11 +89,9 @@ public class ResponseProcessor extends AbstractVerticle
 
         var discoveryResults = data.getJsonArray("results");
 
-        var discoveryId = data.getLong(ID, -1L);
-
         if (discoveryResults == null || discoveryResults.isEmpty())
         {
-            LOGGER.info("No discovery results to store for discovery_id={}", discoveryId);
+            LOGGER.info("No discovery results to store");
 
             return;
         }
@@ -105,7 +103,7 @@ public class ResponseProcessor extends AbstractVerticle
             var result = discoveryResults.getJsonObject(i);
 
             batchParams.add(new JsonArray()
-                .add(discoveryId)
+                .add(result.getInteger("discovery_id"))
                 .add(result.getString(IP))
                 .add(result.getInteger(PORT))
                 .add(result.getString(STATUS))

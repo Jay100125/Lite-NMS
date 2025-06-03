@@ -22,10 +22,14 @@ import static com.example.NMS.utility.DBUtils.*;
  * This class provides REST-ful API endpoints to manage provisioning jobs, which define network devices to be monitored,
  * including their IP addresses, ports, and associated metrics.
  */
-public class Provision
+public class Provision extends AbstractAPI
 {
     public static final Logger LOGGER = LoggerFactory.getLogger(Provision.class);
 
+    public Provision()
+    {
+        super(LOGGER, "Provisioning Jobs");
+    }
     /**
      * Initializes API routes for provisioning job management endpoints.
      * Sets up routes for creating, retrieving, deleting, updating metrics, and fetching polled data for provisioning jobs.
@@ -36,13 +40,20 @@ public class Provision
     {
         provisionRouter.post("/api/provision/:id").handler(this::create);
 
-        provisionRouter.get("/api/provision").handler(this::getAll);
+//        provisionRouter.get("/api/provision").handler(this::getAll);
+//
+//        provisionRouter.get("/api/provision/:id").handler(this::getById);
 
-        provisionRouter.get("/api/provision/:id").handler(this::getById);
+        provisionRouter.get("/api/provision").handler(ctx ->
+            super.getAll(ctx, QueryConstant.GET_ALL_PROVISIONING_JOBS)
+        );
+        provisionRouter.get("/api/provision/:id").handler(ctx ->
+            super.getById(ctx, QueryConstant.GET_PROVISIONING_JOB_BY_ID)
+        );
 
         provisionRouter.delete("/api/provision/:id").handler(this::delete);
 
-        provisionRouter.put("/api/provision/:id/metrics").handler(this::updateMetrics);
+        provisionRouter.put("/api/provision/:id/metrics").handler(this::update);
 
         provisionRouter.get("/api/polled-data").handler(this::getAllPolledData);
     }
@@ -259,7 +270,7 @@ public class Provision
      *
      * @param context The routing context containing the HTTP request with provisioning job ID and metrics data.
      */
-    public void updateMetrics(RoutingContext context)
+    public void update(RoutingContext context)
     {
         try
         {

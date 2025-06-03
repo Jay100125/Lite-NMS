@@ -22,10 +22,13 @@ import static com.example.NMS.utility.DBUtils.*;
  * as well as fetch their results. Discovery profiles define network scanning parameters, including IP addresses,
  * ports, and associated credentials.
  */
-public class Discovery
+public class Discovery extends AbstractAPI
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(Discovery.class);
 
+    public Discovery() {
+        super(LOGGER, "Discovery Profiles");
+    }
     /**
      * Initializes API routes for discovery profile management endpoints.
      * Sets up routes for creating, retrieving, updating, deleting, running, and fetching results of discovery profiles.
@@ -36,17 +39,17 @@ public class Discovery
     {
         discoveryRoute.post("/api/discovery").handler(this::create);
 
-        discoveryRoute.get("/api/discovery"+ "/:id").handler(this::getById);
-
-        discoveryRoute.get("/api/discovery").handler(this::getAll);
-
-        discoveryRoute.delete("/api/discovery" + "/:id").handler(this::delete);
-
         discoveryRoute.put("/api/discovery" + "/:id").handler(this::update);
 
         discoveryRoute.post("/api/discovery" + "/:id/run").handler(this::run);
 
         discoveryRoute.get("/api/discovery" + "/:id/result").handler(this::getResults);
+
+        discoveryRoute.get("/api/discovery/:id").handler(context -> getById(context, QueryConstant.GET_DISCOVERY_BY_ID));
+
+        discoveryRoute.get("/api/discovery").handler(context -> getAll(context, QueryConstant.GET_ALL_DISCOVERIES));
+
+        discoveryRoute.delete("/api/discovery/:id").handler(context ->  delete(context, QueryConstant.DELETE_DISCOVERY));
     }
 
     /**
@@ -55,7 +58,7 @@ public class Discovery
      *
      * @param context The routing context containing the HTTP request with discovery profile data.
      */
-    private void create(RoutingContext context)
+    protected void create(RoutingContext context)
     {
         try
         {
@@ -137,167 +140,167 @@ public class Discovery
         }
     }
 
-    /**
-     * Handles GET requests to retrieve a discovery profile by its ID.
-     * Fetches the profile from the database and returns it if found.
-     *
-     * @param context The routing context containing the HTTP request with discovery ID.
-     */
-    private void getById(RoutingContext context)
-    {
-        try
-        {
-            // Parse and validate discovery ID from path
-            var id = APIUtils.parseIdFromPath(context, ID);
+//    /**
+//     * Handles GET requests to retrieve a discovery profile by its ID.
+//     * Fetches the profile from the database and returns it if found.
+//     *
+//     * @param context The routing context containing the HTTP request with discovery ID.
+//     */
+//    private void getById(RoutingContext context)
+//    {
+//        try
+//        {
+//            // Parse and validate discovery ID from path
+//            var id = APIUtils.parseIdFromPath(context, ID);
+//
+//            if (id == -1)
+//            {
+//                return;
+//            }
+//
+//            // Prepare query to fetch discovery profile by ID.
+//            var query = new JsonObject()
+//                .put(QUERY, QueryConstant.GET_DISCOVERY_BY_ID)
+//                .put(PARAMS, new JsonArray().add(id));
+//
+//            executeQuery(query)
+//                .onComplete(queryResult ->
+//                {
+//                    if(queryResult.succeeded())
+//                    {
+//                        var result = queryResult.result();
+//
+//                        if (!result.isEmpty())
+//                        {
+//                            APIUtils.sendSuccess(context, 200, "Discovery profile for current Id",result);
+//                        }
+//                        else
+//                        {
+//                            APIUtils.sendError(context, 404, "Discovery profile not found");
+//                        }
+//                    }
+//                    else
+//                    {
+//                        var error = queryResult.cause();
+//
+//                        LOGGER.error("Failed to fetch discovery ID={}: {}", id, error.getMessage());
+//
+//                        APIUtils.sendError(context, 500, "Database query failed: " + error.getMessage());
+//                    }
+//                });
+//        }
+//        catch (Exception exception)
+//        {
+//            LOGGER.error("Unexpected error during discovery retrieval : {}", exception.getMessage());
+//
+//            APIUtils.sendError(context, 500, "Internal server error");
+//        }
+//    }
 
-            if (id == -1)
-            {
-                return;
-            }
+//    /**
+//     * Handles GET requests to retrieve all discovery profiles.
+//     * Fetches all profiles from the database and returns them.
+//     *
+//     * @param context The routing context containing the HTTP request.
+//     */
+//    private void getAll(RoutingContext context)
+//    {
+//        // Prepare query to fetch all discovery profiles
+//        var query = new JsonObject().put(QUERY, QueryConstant.GET_ALL_DISCOVERIES);
+//
+//        executeQuery(query)
+//            .onComplete(queryResult ->
+//            {
+//                if(queryResult.succeeded())
+//                {
+//                    var result = queryResult.result();
+//
+//                    if (!result.isEmpty())
+//                    {
+//                        APIUtils.sendSuccess(context, 200, "Discovery profiles",result);
+//                    }
+//                    else
+//                    {
+//                        APIUtils.sendError(context, 404, "No discovery profiles found");
+//                    }
+//                }
+//                else
+//                {
+//                    var error = queryResult.cause();
+//
+//                    LOGGER.error("Error executing query: {}", error.getMessage());
+//
+//                    APIUtils.sendError(context, 500, "Database query failed: " + error.getMessage());
+//                }
+//            });
+//    }
 
-            // Prepare query to fetch discovery profile by ID.
-            var query = new JsonObject()
-                .put(QUERY, QueryConstant.GET_DISCOVERY_BY_ID)
-                .put(PARAMS, new JsonArray().add(id));
-
-            executeQuery(query)
-                .onComplete(queryResult ->
-                {
-                    if(queryResult.succeeded())
-                    {
-                        var result = queryResult.result();
-
-                        if (!result.isEmpty())
-                        {
-                            APIUtils.sendSuccess(context, 200, "Discovery profile for current Id",result);
-                        }
-                        else
-                        {
-                            APIUtils.sendError(context, 404, "Discovery profile not found");
-                        }
-                    }
-                    else
-                    {
-                        var error = queryResult.cause();
-
-                        LOGGER.error("Failed to fetch discovery ID={}: {}", id, error.getMessage());
-
-                        APIUtils.sendError(context, 500, "Database query failed: " + error.getMessage());
-                    }
-                });
-        }
-        catch (Exception exception)
-        {
-            LOGGER.error("Unexpected error during discovery retrieval : {}", exception.getMessage());
-
-            APIUtils.sendError(context, 500, "Internal server error");
-        }
-    }
-
-    /**
-     * Handles GET requests to retrieve all discovery profiles.
-     * Fetches all profiles from the database and returns them.
-     *
-     * @param context The routing context containing the HTTP request.
-     */
-    private void getAll(RoutingContext context)
-    {
-        // Prepare query to fetch all discovery profiles
-        var query = new JsonObject().put(QUERY, QueryConstant.GET_ALL_DISCOVERIES);
-
-        executeQuery(query)
-            .onComplete(queryResult ->
-            {
-                if(queryResult.succeeded())
-                {
-                    var result = queryResult.result();
-
-                    if (!result.isEmpty())
-                    {
-                        APIUtils.sendSuccess(context, 200, "Discovery profiles",result);
-                    }
-                    else
-                    {
-                        APIUtils.sendError(context, 404, "No discovery profiles found");
-                    }
-                }
-                else
-                {
-                    var error = queryResult.cause();
-
-                    LOGGER.error("Error executing query: {}", error.getMessage());
-
-                    APIUtils.sendError(context, 500, "Database query failed: " + error.getMessage());
-                }
-            });
-    }
-
-    /**
-     * Handles DELETE requests to remove a discovery profile by its ID.
-     * Deletes the profile from the database if it exists.
-     *
-     * @param context The routing context containing the HTTP request with discovery ID.
-     */
-    private void delete(RoutingContext context)
-    {
-        try
-        {
-            // Parse and validate discovery ID from path.
-            var id = APIUtils.parseIdFromPath(context, ID);
-
-            if (id == -1)
-            {
-                return;
-            }
-
-            // Prepare query to delete discovery profile by ID.
-            var query = new JsonObject()
-                .put(QUERY, QueryConstant.DELETE_DISCOVERY)
-                .put(PARAMS, new JsonArray().add(id));
-
-            executeQuery(query)
-                .onComplete(queryResult ->
-                {
-                    if(queryResult.succeeded())
-                    {
-                        var result = queryResult.result();
-
-                        if (!result.isEmpty())
-                        {
-                            LOGGER.info("Discovery profile deleted: ID={}", id);
-
-                            APIUtils.sendSuccess(context, 200,"Discovery profile deleted successfully" ,result);
-                        }
-                        else
-                        {
-                            LOGGER.warn("Discovery profile not found for ID={}", id);
-
-                            APIUtils.sendError(context, 404, "Discovery profile not found");
-                        }
-                    }
-                    else
-                    {
-                        var error = queryResult.cause();
-
-                        APIUtils.sendError(context, 500, "Database query failed: " + error.getMessage());
-                    }
-                });
-        }
-        catch (Exception exception)
-        {
-            LOGGER.error("Error deleting discovery: {}", exception.getMessage());
-
-            APIUtils.sendError(context, 500, "Internal server error");
-        }
-
-    }
+//    /**
+//     * Handles DELETE requests to remove a discovery profile by its ID.
+//     * Deletes the profile from the database if it exists.
+//     *
+//     * @param context The routing context containing the HTTP request with discovery ID.
+//     */
+//    private void delete(RoutingContext context)
+//    {
+//        try
+//        {
+//            // Parse and validate discovery ID from path.
+//            var id = APIUtils.parseIdFromPath(context, ID);
+//
+//            if (id == -1)
+//            {
+//                return;
+//            }
+//
+//            // Prepare query to delete discovery profile by ID.
+//            var query = new JsonObject()
+//                .put(QUERY, QueryConstant.DELETE_DISCOVERY)
+//                .put(PARAMS, new JsonArray().add(id));
+//
+//            executeQuery(query)
+//                .onComplete(queryResult ->
+//                {
+//                    if(queryResult.succeeded())
+//                    {
+//                        var result = queryResult.result();
+//
+//                        if (!result.isEmpty())
+//                        {
+//                            LOGGER.info("Discovery profile deleted: ID={}", id);
+//
+//                            APIUtils.sendSuccess(context, 200,"Discovery profile deleted successfully" ,result);
+//                        }
+//                        else
+//                        {
+//                            LOGGER.warn("Discovery profile not found for ID={}", id);
+//
+//                            APIUtils.sendError(context, 404, "Discovery profile not found");
+//                        }
+//                    }
+//                    else
+//                    {
+//                        var error = queryResult.cause();
+//
+//                        APIUtils.sendError(context, 500, "Database query failed: " + error.getMessage());
+//                    }
+//                });
+//        }
+//        catch (Exception exception)
+//        {
+//            LOGGER.error("Error deleting discovery: {}", exception.getMessage());
+//
+//            APIUtils.sendError(context, 500, "Internal server error");
+//        }
+//
+//    }
 
     /**
      * Handles PUT requests to update an existing discovery profile, including its credentials.
      *
      * @param context The routing context containing the HTTP request.
      */
-    private void update(RoutingContext context)
+    protected void update(RoutingContext context)
     {
         try
         {

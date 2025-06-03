@@ -14,9 +14,10 @@ import static com.example.NMS.constant.Constant.*; // For ID, QUERY, PARAMS, MES
  * Subclasses should provide implementations for create and update operations
  * and can override common operations if specific logic is required.
  */
-public abstract class AbstractAPI {
+public abstract class AbstractAPI
+{
+    protected final Logger LOGGER;
 
-    protected final Logger logger;
     protected final String entityName; // e.g., "Credential", "Discovery Profile"
 
     /**
@@ -24,8 +25,10 @@ public abstract class AbstractAPI {
      * @param logger The SLF4J logger instance from the subclass.
      * @param entityName Singular name of the entity (e.g., "Credential").
      */
-    protected AbstractAPI(Logger logger, String entityName) {
-        this.logger = logger;
+    protected AbstractAPI(Logger logger, String entityName)
+    {
+        this.LOGGER = logger;
+
         this.entityName = entityName;
     }
 
@@ -34,6 +37,7 @@ public abstract class AbstractAPI {
     // Subclasses must provide their specific logic for these operations.
     // Routing to these methods is handled in the subclass's init() method.
     protected abstract void create(RoutingContext context);
+
     protected abstract void update(RoutingContext context);
 
     /**
@@ -41,24 +45,35 @@ public abstract class AbstractAPI {
      * @param context The routing context from Vert.x.
      * @param getAllQueryConstant The database query constant (from QueryConstant class) for fetching all entities.
      */
-    protected void getAll(RoutingContext context, String getAllQueryConstant) {
-        logger.info("Fetching all {}", entityName.toLowerCase());
+    protected void getAll(RoutingContext context, String getAllQueryConstant)
+    {
+        LOGGER.info("Fetching all {}", entityName.toLowerCase());
 
         var query = new JsonObject().put(QUERY, getAllQueryConstant);
 
         DBUtils.executeQuery(query)
-            .onComplete(queryResult -> {
-                if (queryResult.succeeded()) {
+            .onComplete(queryResult ->
+            {
+                if (queryResult.succeeded())
+                {
                     var result = queryResult.result();
+
                     // Ensure result is not null, though executeQuery should return non-null JsonArray
-                    if (result != null && !result.isEmpty()) {
+                    if (result != null && !result.isEmpty())
+                    {
                         APIUtils.sendSuccess(context, 200, entityName, result);
-                    } else {
+                    }
+                    else
+                    {
                         APIUtils.sendError(context, 404, "No " + entityName.toLowerCase() + " found");
                     }
-                } else {
+                }
+                else
+                {
                     var error = queryResult.cause();
-                    logger.error("Failed to fetch {}: {}", entityName.toLowerCase(), error.getMessage(), error);
+
+                    LOGGER.error("Failed to fetch {}: {}", entityName.toLowerCase(), error.getMessage(), error);
+
                     APIUtils.sendError(context, 500, "Database error: " + error.getMessage());
                 }
             });
@@ -69,40 +84,58 @@ public abstract class AbstractAPI {
      * @param context The routing context from Vert.x.
      * @param getByIdQueryConstant The database query constant (from QueryConstant class) for fetching an entity by ID.
      */
-    protected void getById(RoutingContext context, String getByIdQueryConstant) {
-        try {
+    protected void getById(RoutingContext context, String getByIdQueryConstant)
+    {
+        try
+        {
             var id = APIUtils.parseIdFromPath(context, ID);
-            if (id == -1) {
+
+            if (id == -1)
+            {
                 // APIUtils.parseIdFromPath already sends an error response and logs
                 return;
             }
 
-            logger.info("Fetching {} with ID: {}", entityName.toLowerCase(), id);
+            LOGGER.info("Fetching {} with ID: {}", entityName.toLowerCase(), id);
 
             var queryParams = new JsonArray().add(id);
+
             var query = new JsonObject()
                 .put(QUERY, getByIdQueryConstant)
                 .put(PARAMS, queryParams);
 
             DBUtils.executeQuery(query)
                 .onComplete(queryResult -> {
-                    if (queryResult.succeeded()) {
+                    if (queryResult.succeeded())
+                    {
                         var result = queryResult.result();
-                        if (result != null && !result.isEmpty()) {
+
+                        if (result != null && !result.isEmpty())
+                        {
                             APIUtils.sendSuccess(context, 200, entityName + " details", result);
-                        } else {
-                            logger.warn("{} not found for ID: {}", entityName, id);
+                        }
+                        else
+                        {
+                            LOGGER.warn("{} not found for ID: {}", entityName, id);
+
                             APIUtils.sendError(context, 404, entityName + " not found");
                         }
-                    } else {
+                    }
+                    else
+                    {
                         var error = queryResult.cause();
-                        logger.error("Failed to fetch {} with ID {}: {}", entityName.toLowerCase(), id, error.getMessage(), error);
+
+                        LOGGER.error("Failed to fetch {} with ID {}: {}", entityName.toLowerCase(), id, error.getMessage(), error);
+
                         APIUtils.sendError(context, 500, "Database error: " + error.getMessage());
                     }
                 });
-        } catch (Exception exception) {
+        }
+        catch (Exception exception)
+        {
             // Catching potential errors from APIUtils.parseIdFromPath or JsonObject creation
-            logger.error("Unexpected error while fetching {} by ID: {}", entityName.toLowerCase(), exception.getMessage(), exception);
+            LOGGER.error("Unexpected error while fetching {} by ID: {}", entityName.toLowerCase(), exception.getMessage(), exception);
+
             APIUtils.sendError(context, 500, "An unexpected error occurred while fetching " + entityName.toLowerCase() + ".");
         }
     }
@@ -113,40 +146,60 @@ public abstract class AbstractAPI {
      * @param context The routing context from Vert.x.
      * @param deleteQueryConstant The database query constant (from QueryConstant class) for deleting an entity by ID.
      */
-    protected void delete(RoutingContext context, String deleteQueryConstant) {
-        try {
+    protected void delete(RoutingContext context, String deleteQueryConstant)
+    {
+        try
+        {
             var id = APIUtils.parseIdFromPath(context, ID);
-            if (id == -1) {
+
+            if (id == -1)
+            {
                 // APIUtils.parseIdFromPath already sends an error response and logs
                 return;
             }
 
-            logger.info("Deleting {} with ID: {}", entityName.toLowerCase(), id);
+            LOGGER.info("Deleting {} with ID: {}", entityName.toLowerCase(), id);
 
             var queryParams = new JsonArray().add(id);
+
             var query = new JsonObject()
                 .put(QUERY, deleteQueryConstant)
                 .put(PARAMS, queryParams);
 
             DBUtils.executeQuery(query)
-                .onComplete(queryResult -> {
-                    if (queryResult.succeeded()) {
+                .onComplete(queryResult ->
+                {
+                    if (queryResult.succeeded())
+                    {
                         var result = queryResult.result();
-                        if (result != null && !result.isEmpty()) {
-                            logger.info("{} with ID {} deleted successfully.", entityName, id);
+
+                        if (result != null && !result.isEmpty())
+                        {
+                            LOGGER.info("{} with ID {} deleted successfully.", entityName, id);
+
                             APIUtils.sendSuccess(context, 200, entityName + " deleted successfully", result);
-                        } else {
-                            logger.warn("Attempted to delete non-existent {} with ID: {}", entityName, id);
+                        }
+                        else
+                        {
+                            LOGGER.warn("Attempted to delete non-existent {} with ID: {}", entityName, id);
+
                             APIUtils.sendError(context, 404, entityName + " not found");
                         }
-                    } else {
+                    }
+                    else
+                    {
                         var error = queryResult.cause();
-                        logger.error("Failed to delete {} with ID {}: {}", entityName.toLowerCase(), id, error.getMessage(), error);
+
+                        LOGGER.error("Failed to delete {} with ID {}: {}", entityName.toLowerCase(), id, error.getMessage(), error);
+
                         APIUtils.sendError(context, 500, "Database error: " + error.getMessage());
                     }
                 });
-        } catch (Exception exception) {
-            logger.error("Unexpected error while deleting {}: {}", entityName.toLowerCase(), exception.getMessage(), exception);
+        }
+        catch (Exception exception)
+        {
+            LOGGER.error("Unexpected error while deleting {}: {}", entityName.toLowerCase(), exception.getMessage(), exception);
+
             APIUtils.sendError(context, 500, "An unexpected error occurred during deletion of " + entityName.toLowerCase() + ".");
         }
     }

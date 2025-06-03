@@ -106,9 +106,9 @@ public class Polling extends AbstractVerticle
                         .put(USER, job.getJsonObject(CRED_DATA).getString(USER))
                         .put(PASSWORD, job.getJsonObject(CRED_DATA).getString(PASSWORD))
                         .put(PROVISIONING_JOB_ID, job.getLong(PROVISIONING_JOB_ID))
-                        .put(METRIC_NAME, "CPU_CORE")
+                        .put(METRIC_NAME, job.getString(METRIC_NAME))
                         .put(PROTOCOL, job.getString(PROTOCOL))
-                        .put(PLUGIN_TYPE, "linuxcpucore"));
+                        .put(PLUGIN_TYPE, LINUX));
                 }
             }
 
