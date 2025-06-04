@@ -108,6 +108,14 @@ public class Constant {
 
     public static final String CREDENTIAL_PROFILES = "credential_profiles";
 
+//    public static final String TARGETS = "targets";
+//
+//    public static final String STORAGE_POLL_RESULTS = "storage.poll.results";
+//
+//    public static final String PLUGIN_EXECUTE = "plugin.execute";
+//
+//    public static final String STORAGE_DISCOVERY_RESULTS = "storage.discovery.results";
+
     public static final String TARGETS = "targets";
 
     public static final String STORAGE_POLL_RESULTS = "storage.poll.results";
@@ -115,6 +123,11 @@ public class Constant {
     public static final String PLUGIN_EXECUTE = "plugin.execute";
 
     public static final String STORAGE_DISCOVERY_RESULTS = "storage.discovery.results";
+
+    public static final String STORAGE_RESULTS = "storage.results";
+
+    public static final int BATCH_SIZE = 5;
+
 
 }
 

@@ -226,26 +226,49 @@ public class Discovery extends AbstractVerticle
             {
                 var errorMsg = up ? "Port closed" : "Device unreachable";
 
-                discoveryResults.add(new JsonObject()
+//                discoveryResults.add(new JsonObject()
+//                    .put(IP, obj.getString(IP))
+//                    .put(PORT, port)
+//                    .put("status", FAILURE)
+//                    .put("result", errorMsg)
+//                    .put("discovery_id", discoveryId)
+//                    .put("credential_id", null));
+                JsonObject unreachableResult = new JsonObject()
                     .put(IP, obj.getString(IP))
                     .put(PORT, port)
                     .put("status", FAILURE)
-                    .put("result", errorMsg)
+                    .put("result", errorMsg) // The actual outcome string
                     .put("discovery_id", discoveryId)
-                    .put("credential_id", null));
+                    .put("credential_id", null)
+                    .put("request.type", "discovery"); // Or determine appropriate credential_id if possible
+
+//                // Send this single result to STORAGE_RESULTS, matching Plugin's format
+//                var storageMessage = new JsonObject()
+//                    .put("result", unreachableResult) // Key "result" (singular) with the JsonObject
+//                    .put(ID, discoveryId) // The overall discovery run ID
+//                    .put(REQUEST_TYPE, DISCOVERY);
+                vertx.eventBus().send(STORAGE_RESULTS, unreachableResult);
+//                LOGGER.info("Sent unreachable/port-closed result for IP {} to {}: {}",
+//                    unreachableResult.getString(IP), STORAGE_RESULTS, storageMessage.encodePrettily());
             }
         }
 
-        if (!discoveryResults.isEmpty())
-        {
-            var storageMessage = new JsonObject()
-                .put("results", discoveryResults)
-                .put(ID, discoveryId);
-
-            vertx.eventBus().send(STORAGE_DISCOVERY_RESULTS, storageMessage);
-
-            LOGGER.info("Sent unreachable/port-closed results to {}: {}", STORAGE_DISCOVERY_RESULTS, storageMessage.encodePrettily());
-        }
+//        if (!discoveryResults.isEmpty())
+//        {
+////            var storageMessage = new JsonObject()
+////                .put("results", discoveryResults)
+////                .put(ID, discoveryId);
+////
+////            vertx.eventBus().send(STORAGE_DISCOVERY_RESULTS, storageMessage);
+////
+////            LOGGER.info("Sent unreachable/port-closed results to {}: {}", STORAGE_DISCOVERY_RESULTS, storageMessage.encodePrettily());
+//            var storageMessage = new JsonObject()
+//                .put("results", discoveryResults)
+//                .put(ID, discoveryId)
+//                .put(REQUEST_TYPE, DISCOVERY);
+//            vertx.eventBus().send(STORAGE_RESULTS, storageMessage);
+//            LOGGER.info("Sent unreachable/port-closed results to {}: {}", STORAGE_RESULTS, storageMessage.encodePrettily());
+//        }
 
         var pluginInput = new JsonObject()
             .put(REQUEST_TYPE, DISCOVERY)
