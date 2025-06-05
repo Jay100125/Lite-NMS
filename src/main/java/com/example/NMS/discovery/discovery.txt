@@ -226,33 +226,22 @@ public class Discovery extends AbstractVerticle
             {
                 var errorMsg = up ? "Port closed" : "Device unreachable";
 
-                discoveryResults.add(new JsonObject()
+                var unreachableResult = new JsonObject()
                     .put(IP, obj.getString(IP))
                     .put(PORT, port)
-                    .put("status", FAILURE)
-                    .put("result", errorMsg)
-                    .put("discovery_id", discoveryId)
-                    .put("credential_id", null));
+                    .put(STATUS, FAILURE)
+                    .put(RESULT, errorMsg)
+                    .put(DISCOVERY_ID, discoveryId)
+                    .put(CREDENTIAL_ID, null)
+                    .put(REQUEST_TYPE, DISCOVERY);
+
+                vertx.eventBus().send(STORAGE_RESULTS, unreachableResult);
             }
-        }
-
-        if (!discoveryResults.isEmpty())
-        {
-            var storageMessage = new JsonObject()
-                .put("results", discoveryResults)
-                .put(ID, discoveryId);
-
-            vertx.eventBus().send(STORAGE_DISCOVERY_RESULTS, storageMessage);
-
-            LOGGER.info("Sent unreachable/port-closed results to {}: {}", STORAGE_DISCOVERY_RESULTS, storageMessage.encodePrettily());
         }
 
         var pluginInput = new JsonObject()
             .put(REQUEST_TYPE, DISCOVERY)
-            .put(TARGETS, targets)
-            .put("id", discoveryId);
-
-
+            .put(TARGETS, targets);
 
         LOGGER.info("Plugin input: {}", pluginInput.encodePrettily());
 

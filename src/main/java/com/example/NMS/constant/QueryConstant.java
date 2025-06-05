@@ -56,8 +56,8 @@ public class QueryConstant
             "RETURNING metric_id as id";
 
     public static final String INSERT_POLLED_DATA =
-        "INSERT INTO polled_data (job_id, metric_type, data) " +
-            "VALUES ($1, $2, $3::jsonb) returning id";
+        "INSERT INTO polled_data (job_id, metric_type, data, polled_at) " +
+            "VALUES ($1, $2, $3::jsonb, $4) returning id";
 
     public static final String GET_ALL_PROVISIONING_JOBS =
         "SELECT pj.*, cp.credential_name, cp.system_type " +

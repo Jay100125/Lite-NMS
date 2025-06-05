@@ -124,11 +124,14 @@ package com.example.NMS.plugin;
 import com.example.NMS.constant.QueryConstant;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
+import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.Optional;
 
 import static com.example.NMS.constant.Constant.*;
@@ -161,14 +164,17 @@ public class ResponseProcessor extends AbstractVerticle
 
             if (DISCOVERY.equals(requestType))
             {
-                discoveryResultsBuffer.add(data);
+//                discoveryResultsBuffer.add(data);
+//
+//                if (discoveryResultsBuffer.size() >= BATCH_SIZE)
+//                {
+//                    storeDiscoveryResults(new JsonObject().put("results", discoveryResultsBuffer));
+//
+//                    discoveryResultsBuffer.clear();
+//                }
 
-                if (discoveryResultsBuffer.size() >= BATCH_SIZE)
-                {
-                    storeDiscoveryResults(new JsonObject().put("results", discoveryResultsBuffer));
+                storeDiscoveryResults(data);
 
-                    discoveryResultsBuffer.clear();
-                }
             }
             else if (POLLING.equals(requestType))
             {
@@ -195,12 +201,12 @@ public class ResponseProcessor extends AbstractVerticle
 
                 pollResultsBuffer.clear();
             }
-            if (!discoveryResultsBuffer.isEmpty())
-            {
-                storeDiscoveryResults(new JsonObject().put("results", discoveryResultsBuffer));
-
-                discoveryResultsBuffer.clear();
-            }
+//            if (!discoveryResultsBuffer.isEmpty())
+//            {
+//                storeDiscoveryResults(new JsonObject().put("results", discoveryResultsBuffer));
+//
+//                discoveryResultsBuffer.clear();
+//            }
         });
 
         LOGGER.info("ResponseProcessor deployed with batching");
@@ -241,6 +247,8 @@ public class ResponseProcessor extends AbstractVerticle
 
                 var metricsData = resultObj.getJsonObject("data");
 
+                var timestamp = resultObj.getLong("timestamp");
+
                 LOGGER.info("Storing polling data: {}", metricsData);
 
                 if (metricsData != null)
@@ -249,7 +257,8 @@ public class ResponseProcessor extends AbstractVerticle
                         batchParams.add(new JsonArray()
                             .add(jobId)
                             .add(metric)
-                            .add(metricsData.getJsonObject(metric))));
+                            .add(metricsData.getJsonObject(metric))
+                            .add(timestamp)));
                 }
             }
             else
@@ -269,32 +278,52 @@ public class ResponseProcessor extends AbstractVerticle
 
     private void storeDiscoveryResults(JsonObject data)
     {
-        var results = data.getJsonArray("results");
+//        var results = data;
+//
+//        if (results == null || results.isEmpty()) {
+//            LOGGER.info("No discovery results to store");
+//            return;
+//        }
 
-        if (results == null || results.isEmpty()) {
-            LOGGER.info("No discovery results to store");
-            return;
-        }
+//        var batchParams = new JsonArray();
 
-        var batchParams = new JsonArray();
+//        results.forEach(result ->
+//        {
+//            var resultObj = (JsonObject) result;
+//
+////            batchParams.add(new JsonArray()
+////                .add(resultObj.getInteger(DISCOVERY_ID))
+////                .add(resultObj.getString(IP))
+////                .add(resultObj.getInteger(PORT))
+////                .add(resultObj.getString(STATUS))
+////                .add(resultObj.getString(RESULT))
+////                .add(resultObj.getValue(CREDENTIAL_ID)));
+//        });
 
-        results.forEach(result ->
-        {
-            var resultObj = (JsonObject) result;
+//
+//        var queryParams = new JsonArray()
+//                            .add(results.getInteger(DISCOVERY_ID))
+//                            .add(results.getString(IP))
+//                            .add(results.getInteger(PORT))
+//                            .add(results.getString(STATUS))
+//                            .add(results.getString(RESULT))
+//                            .add(results.getValue(CREDENTIAL_ID));
 
-            batchParams.add(new JsonArray()
-                .add(resultObj.getInteger("discovery_id"))
-                .add(resultObj.getString(IP))
-                .add(resultObj.getInteger(PORT))
-                .add(resultObj.getString(STATUS))
-                .add(resultObj.getString("result"))
-                .add(resultObj.getValue("credential_id")));
-        });
+
+        var queryParams = new JsonArray()
+            .add(data.getInteger(DISCOVERY_ID)) // e.g., $1
+            .add(data.getString(IP))            // e.g., $2
+            .add(data.getInteger(PORT))         // e.g., $3
+            .add(data.getString(STATUS))        // e.g., $4
+            .add(data.getString(RESULT))        // e.g., $5
+            .add(data.getValue(CREDENTIAL_ID)); // e.g., $6 (can be null)
+
+        LOGGER.info("Storing discovery results: {}", queryParams.encodePrettily());
 
         var query = new JsonObject()
             .put(QUERY, QueryConstant.INSERT_DISCOVERY_RESULT)
-            .put(BATCHPARAMS, batchParams);
+            .put(PARAMS, queryParams);
 
-        vertx.eventBus().send(DB_EXECUTE_BATCH_QUERY, query);
+        vertx.eventBus().send(DB_EXECUTE_QUERY, query);
     }
 }

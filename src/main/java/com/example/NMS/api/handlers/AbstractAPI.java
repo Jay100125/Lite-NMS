@@ -92,7 +92,6 @@ public abstract class AbstractAPI
 
             if (id == -1)
             {
-                // APIUtils.parseIdFromPath already sends an error response and logs
                 return;
             }
 

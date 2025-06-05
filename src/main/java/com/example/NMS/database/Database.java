@@ -89,13 +89,19 @@ public class Database extends AbstractVerticle
 
                     LOGGER.debug("Query successful: {}, result size: {}", query, jsonRows.size());
 
-                    message.reply(jsonRows);
+                    if (message.replyAddress() != null)
+                    {
+                        message.reply(jsonRows);
+                    }
                 }
                 else
                 {
                     LOGGER.error("❌ Query failed: {}. Error: {}", query, result.cause().getMessage());
 
-                    message.fail(500, result.cause().getMessage());
+                    if (message.replyAddress() != null)
+                    {
+                        message.fail(500, result.cause().getMessage());
+                    }
                 }
             });
         });
@@ -142,7 +148,10 @@ public class Database extends AbstractVerticle
                 {
                     LOGGER.error("❌ Batch query failed: {}. Error: {}", query, result.cause().getMessage());
 
-                    message.fail(500, result.cause().getMessage());
+                    if (message.replyAddress() != null)
+                    {
+                        message.fail(500, result.cause().getMessage());
+                    }
                 }
             });
         });

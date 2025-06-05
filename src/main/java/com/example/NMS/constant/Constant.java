@@ -90,6 +90,10 @@ public class Constant {
 
     public static final String REMAINING_TIME = "remaining_time";
 
+    public static final String DISCOVERY_ID = "discovery_id";
+
+    public static final String CREDENTIAL_ID = "credential_id";
+
     public static final String IP = "ip";
 
     public static final String IS_ENABLED = "is_enabled";

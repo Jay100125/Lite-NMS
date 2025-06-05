@@ -93,23 +93,10 @@ public class Plugin extends AbstractVerticle
 
                     var decoded = new String(decodedBytes, StandardCharsets.UTF_8);
 
-//                    results.add(new JsonObject(decoded));
-//
-//                    LOGGER.info("Decoded stdout line: {}", decoded);
-
-//                    var resultObj = new JsonObject(decoded);
-//
-//                    LOGGER.info("--------------------------------------------");
-//                    LOGGER.info("Decoded stdout line: {}", resultObj.encodePrettily());
-//                    var message = new JsonObject()
-//                        .put("result", resultObj)
-//                        .put(REQUEST_TYPE, pluginJson.getString(REQUEST_TYPE))
-//                        .put(ID, pluginJson.getLong(ID, -1L));
-//                    vertx.eventBus().send(STORAGE_RESULTS, message);
                     var resultObj = new JsonObject(decoded);
 
-                    LOGGER.info("--------------------------------------------");
-                    LOGGER.info(resultObj.encodePrettily());
+                    resultObj.put("timestamp", System.currentTimeMillis());
+
                     vertx.eventBus().send(STORAGE_RESULTS, resultObj);
                 }
                 catch (Exception exception)
@@ -142,14 +129,6 @@ public class Plugin extends AbstractVerticle
                 }
                 LOGGER.info(results.encodePrettily());
             }
-
-//            if (results.isEmpty())
-//            {
-//                results.add(new JsonObject()
-//                    .put(STATUS, "failed")
-//                    .put(ERROR, "No data returned from SSH plugin"));
-//            }
-
         }
         catch (Exception exception)
         {
@@ -175,31 +154,6 @@ public class Plugin extends AbstractVerticle
             {
                 LOGGER.error("Error cleaning up SSH plugin process: {}", exception.getMessage());
             }
-
-//            // Forward results to StorageVerticle
-//            var requestType = pluginJson.getString(REQUEST_TYPE);
-//
-//            var storageAddress = POLLING.equals(requestType) ? STORAGE_POLL_RESULTS : STORAGE_DISCOVERY_RESULTS;
-//
-//            var storageMessage = new JsonObject().put("results", results);
-//
-//            LOGGER.info(storageMessage.encodePrettily());
-
-//            if (POLLING.equals(requestType))
-//            {
-//                // Include provisioning_job_id for polling
-//                if (!pluginJson.getJsonArray(TARGETS).isEmpty())
-//                {
-////                    storageMessage.put(PROVISIONING_JOB_ID, pluginJson.getJsonArray(TARGETS).getJsonObject(0).getLong(PROVISIONING_JOB_ID));
-//                }
-//            } else {
-//                // Include discovery_id for discovery
-//                storageMessage.put(ID, pluginJson.getLong(ID, -1L));
-//            }
-
-//            vertx.eventBus().send(storageAddress, storageMessage);
-//
-//            LOGGER.info("Sent results to {}: {}", storageAddress, storageMessage.encodePrettily());
         }
     }
 }
