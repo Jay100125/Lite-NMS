@@ -244,4 +244,7 @@ public class QueryConstant
         WHERE pj.id = $1
         GROUP BY pj.id, pj.ip, pj.port;
     """;
+
+
+    public static final String UPDATE_DISCOVERY_PROFILE_STATUS = "UPDATE discovery_profiles SET status = $1 WHERE id = $2";
 }

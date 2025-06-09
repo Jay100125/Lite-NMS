@@ -140,166 +140,13 @@ public class Discovery extends AbstractAPI
         }
     }
 
-//    /**
-//     * Handles GET requests to retrieve a discovery profile by its ID.
-//     * Fetches the profile from the database and returns it if found.
-//     *
-//     * @param context The routing context containing the HTTP request with discovery ID.
-//     */
-//    private void getById(RoutingContext context)
-//    {
-//        try
-//        {
-//            // Parse and validate discovery ID from path
-//            var id = APIUtils.parseIdFromPath(context, ID);
-//
-//            if (id == -1)
-//            {
-//                return;
-//            }
-//
-//            // Prepare query to fetch discovery profile by ID.
-//            var query = new JsonObject()
-//                .put(QUERY, QueryConstant.GET_DISCOVERY_BY_ID)
-//                .put(PARAMS, new JsonArray().add(id));
-//
-//            executeQuery(query)
-//                .onComplete(queryResult ->
-//                {
-//                    if(queryResult.succeeded())
-//                    {
-//                        var result = queryResult.result();
-//
-//                        if (!result.isEmpty())
-//                        {
-//                            APIUtils.sendSuccess(context, 200, "Discovery profile for current Id",result);
-//                        }
-//                        else
-//                        {
-//                            APIUtils.sendError(context, 404, "Discovery profile not found");
-//                        }
-//                    }
-//                    else
-//                    {
-//                        var error = queryResult.cause();
-//
-//                        LOGGER.error("Failed to fetch discovery ID={}: {}", id, error.getMessage());
-//
-//                        APIUtils.sendError(context, 500, "Database query failed: " + error.getMessage());
-//                    }
-//                });
-//        }
-//        catch (Exception exception)
-//        {
-//            LOGGER.error("Unexpected error during discovery retrieval : {}", exception.getMessage());
-//
-//            APIUtils.sendError(context, 500, "Internal server error");
-//        }
-//    }
-
-//    /**
-//     * Handles GET requests to retrieve all discovery profiles.
-//     * Fetches all profiles from the database and returns them.
-//     *
-//     * @param context The routing context containing the HTTP request.
-//     */
-//    private void getAll(RoutingContext context)
-//    {
-//        // Prepare query to fetch all discovery profiles
-//        var query = new JsonObject().put(QUERY, QueryConstant.GET_ALL_DISCOVERIES);
-//
-//        executeQuery(query)
-//            .onComplete(queryResult ->
-//            {
-//                if(queryResult.succeeded())
-//                {
-//                    var result = queryResult.result();
-//
-//                    if (!result.isEmpty())
-//                    {
-//                        APIUtils.sendSuccess(context, 200, "Discovery profiles",result);
-//                    }
-//                    else
-//                    {
-//                        APIUtils.sendError(context, 404, "No discovery profiles found");
-//                    }
-//                }
-//                else
-//                {
-//                    var error = queryResult.cause();
-//
-//                    LOGGER.error("Error executing query: {}", error.getMessage());
-//
-//                    APIUtils.sendError(context, 500, "Database query failed: " + error.getMessage());
-//                }
-//            });
-//    }
-
-//    /**
-//     * Handles DELETE requests to remove a discovery profile by its ID.
-//     * Deletes the profile from the database if it exists.
-//     *
-//     * @param context The routing context containing the HTTP request with discovery ID.
-//     */
-//    private void delete(RoutingContext context)
-//    {
-//        try
-//        {
-//            // Parse and validate discovery ID from path.
-//            var id = APIUtils.parseIdFromPath(context, ID);
-//
-//            if (id == -1)
-//            {
-//                return;
-//            }
-//
-//            // Prepare query to delete discovery profile by ID.
-//            var query = new JsonObject()
-//                .put(QUERY, QueryConstant.DELETE_DISCOVERY)
-//                .put(PARAMS, new JsonArray().add(id));
-//
-//            executeQuery(query)
-//                .onComplete(queryResult ->
-//                {
-//                    if(queryResult.succeeded())
-//                    {
-//                        var result = queryResult.result();
-//
-//                        if (!result.isEmpty())
-//                        {
-//                            LOGGER.info("Discovery profile deleted: ID={}", id);
-//
-//                            APIUtils.sendSuccess(context, 200,"Discovery profile deleted successfully" ,result);
-//                        }
-//                        else
-//                        {
-//                            LOGGER.warn("Discovery profile not found for ID={}", id);
-//
-//                            APIUtils.sendError(context, 404, "Discovery profile not found");
-//                        }
-//                    }
-//                    else
-//                    {
-//                        var error = queryResult.cause();
-//
-//                        APIUtils.sendError(context, 500, "Database query failed: " + error.getMessage());
-//                    }
-//                });
-//        }
-//        catch (Exception exception)
-//        {
-//            LOGGER.error("Error deleting discovery: {}", exception.getMessage());
-//
-//            APIUtils.sendError(context, 500, "Internal server error");
-//        }
-//
-//    }
 
     /**
      * Handles PUT requests to update an existing discovery profile, including its credentials.
      *
      * @param context The routing context containing the HTTP request.
      */
+    @Override
     protected void update(RoutingContext context)
     {
         try
@@ -417,7 +264,7 @@ public class Discovery extends AbstractAPI
             }
 
             var checkQuery = new JsonObject()
-                .put(QUERY, QueryConstant.GET_DISCOVERY_BY_ID)
+                .put(QUERY, QueryConstant.GET_BY_RUN_ID)
                 .put(PARAMS, new JsonArray().add(id));
 
             executeQuery(checkQuery).onComplete(queryResult ->
@@ -435,9 +282,13 @@ public class Discovery extends AbstractAPI
 
                     // Trigger discovery via event bus
 
-                    var request = new JsonObject().put(ID, id);
+                    var profile = result.getJsonObject(0);
 
-                    vertx.eventBus().send(DISCOVERY_RUN,request);
+                    var request = new JsonObject()
+                        .put(ID, id)
+                        .put("profile", profile);
+
+                    vertx.eventBus().send(DISCOVERY_RUN, request);
 
                     APIUtils.sendSuccess(context, 200, "Discovery Profile is currently running", new JsonArray());
                 }

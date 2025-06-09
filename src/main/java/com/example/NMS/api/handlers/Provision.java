@@ -58,7 +58,6 @@ public class Provision extends AbstractAPI
         provisionRouter.get("/api/polled-data").handler(this::getAllPolledData);
     }
 
-
     /**
      * Handles POST requests to create provisioning jobs for a device.
      * Validates the discovery profile ID and selected IP addresses, then creates provisioning jobs for monitoring.
@@ -160,52 +159,6 @@ public class Provision extends AbstractAPI
             APIUtils.sendError(context, 500, "Internal server error");
         }
     }
-
-//    /**
-//     * Handles GET requests to retrieve all provisioning jobs.
-//     * Fetches all provisioning jobs from the database and returns them.
-//     *
-//     * @param context The routing context containing the HTTP request.
-//     */
-//    public void getAll(RoutingContext context)
-//    {
-//        try
-//        {
-//            // Prepare query to fetch all provisioning jobs
-//            var query = new JsonObject()
-//                .put(QUERY, GET_ALL_PROVISIONING_JOBS);
-//
-//            executeQuery(query)
-//                .onComplete(queryResult ->
-//                {
-//                    if(queryResult.succeeded())
-//                    {
-//                        var result = queryResult.result();
-//
-//                        if (result.isEmpty())
-//                        {
-//                            APIUtils.sendError(context, 404, "No provisioning jobs found");
-//
-//                            return;
-//                        }
-//
-//                        APIUtils.sendSuccess(context,200, "all provision",result);
-//                    }
-//                    else
-//                    {
-//                        var error = queryResult.cause();
-//
-//                        APIUtils.sendError(context, 500, "Database query failed: " + error.getMessage());
-//                    }
-//                });
-//        }
-//        catch (Exception exception)
-//        {
-//            LOGGER.error("Error getting all provisions: {}", exception.getMessage());
-//
-//            APIUtils.sendError(context, 500, "Internal server error");
-//        }
-//    }
 
     /**
      * Handles DELETE requests to remove a provisioning job by its ID.
@@ -383,58 +336,6 @@ public class Provision extends AbstractAPI
             APIUtils.sendError(context, 500, "Internal server error");
         }
     }
-//
-//    private void getById(RoutingContext context)
-//    {
-//        try
-//        {
-//            // Parse and validate credential ID from path parameter
-//            var id = APIUtils.parseIdFromPath(context, ID);
-//
-//            if (id == -1)
-//            {
-//                return;
-//            }
-//
-//            // Prepare query to fetch credential by ID
-//            var getQuery = new JsonObject()
-//                .put(QUERY, GET_PROVISIONING_JOB_BY_ID)
-//                .put(PARAMS, new JsonArray().add(id));
-//
-//            executeQuery(getQuery)
-//                .onComplete(queryResult ->
-//                {
-//                    if (queryResult.succeeded())
-//                    {
-//                        var result = queryResult.result();
-//
-//                        if (!result.isEmpty())
-//                        {
-//                            APIUtils.sendSuccess(context, 200, "provision profile for current Id",result);
-//                        }
-//                        else
-//                        {
-//                            APIUtils.sendError(context, 404, "provision not found");
-//                        }
-//                    }
-//                    else
-//                    {
-//                        var error = queryResult.cause();
-//
-//                        LOGGER.error("Failed to fetch provision {}: {}", id, error.getMessage());
-//
-//                        APIUtils.sendError(context, 500, "Database error: " + error.getMessage());
-//                    }
-//                });
-//        }
-//        catch (Exception exception)
-//        {
-//            LOGGER.error("Unexpected error while fetching provision: {}", exception.getMessage());
-//
-//            APIUtils.sendError(context, 500, "Unexpected error: " + exception.getMessage());
-//        }
-//    }
-
 
     /**
      * Handles GET requests to retrieve all polled data for provisioning jobs.

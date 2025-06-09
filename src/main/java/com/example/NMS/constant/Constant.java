@@ -26,6 +26,15 @@ public class Constant {
 
     public static final String DISCOVERY_RUN = "discovery.run";
 
+    public static final String DISCOVERY_STATUS_PENDING = "pending";
+
+    public static final String DISCOVERY_STATUS_RUNNING = "running";
+
+    public static final String DISCOVERY_STATUS_COMPLETED = "completed";
+
+    public static final String EVENT_COMPLETION = "event.completion";
+
+
     public static final String POLLING_BATCH_PROCESS = "polling.batch.process";
 
     public static final String SUCCESS = "success";
@@ -98,12 +107,6 @@ public class Constant {
 
     public static final String IS_ENABLED = "is_enabled";
 
-    public static final String REACHABILITY_RESULTS = "reachability.results";
-
-    public static final String DISCOVERY_RESULTS = "discovery.results";
-
-    public static final String REACHABLEIPS = "reachableIps";
-
     public static final String REQUEST_TYPE = "request.type";
 
     public static final String DISCOVERY = "discovery";
@@ -111,14 +114,6 @@ public class Constant {
     public static final String POLLING = "polling";
 
     public static final String CREDENTIAL_PROFILES = "credential_profiles";
-
-//    public static final String TARGETS = "targets";
-//
-//    public static final String STORAGE_POLL_RESULTS = "storage.poll.results";
-//
-//    public static final String PLUGIN_EXECUTE = "plugin.execute";
-//
-//    public static final String STORAGE_DISCOVERY_RESULTS = "storage.discovery.results";
 
     public static final String TARGETS = "targets";
 
@@ -130,16 +125,9 @@ public class Constant {
 
     public static final String STORAGE_RESULTS = "storage.results";
 
-    public static final int BATCH_SIZE = 5;
+    public static final int BATCH_SIZE = 25;
 
 
 }
 
 
-// TODO eventbus address NAME
-// ar in asynchronous result
-// TODO done all operation in one transaction
-// TODO Catch handle error
-// discvoery of multiple same credential
-// provisionJObId
-// why by default 3 metric

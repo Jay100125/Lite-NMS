@@ -127,7 +127,6 @@ public class Plugin extends AbstractVerticle
                         .put(STATUS, "failed")
                         .put(ERROR, "SSH plugin failed with exit code: " + exitCode));
                 }
-                LOGGER.info(results.encodePrettily());
             }
         }
         catch (Exception exception)
@@ -154,6 +153,8 @@ public class Plugin extends AbstractVerticle
             {
                 LOGGER.error("Error cleaning up SSH plugin process: {}", exception.getMessage());
             }
+
+            vertx.eventBus().send(EVENT_COMPLETION, pluginJson);
         }
     }
 }

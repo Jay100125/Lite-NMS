@@ -70,6 +70,70 @@ public class Polling extends AbstractVerticle
     }
 
 
+//    private void pollJobs(List<JsonObject> jobs)
+//    {
+//        try
+//        {
+//            // Extract unique IPs from jobs
+//            var ips = jobs.stream()
+//                .map(job -> job.getString(IP))
+//                .distinct()
+//                .collect(Collectors.toList());
+//
+//            // Check reachability for all IPs
+//            var reachResults = Utility.checkReachability(ips, 22);
+//
+//            var targets = new JsonArray();
+//
+//            // Process each job individually
+//            for (var job : jobs)
+//            {
+//                var ip = job.getString(IP);
+//
+//                // Find reachability result for this IP
+//                var reachResult = reachResults.stream()
+//                    .map(obj -> (JsonObject) obj)
+//                    .filter(res -> res.getString(IP).equals(ip))
+//                    .findFirst()
+//                    .orElse(null);
+//
+//                if (reachResult != null && reachResult.getBoolean("reachable") && reachResult.getBoolean("port_open"))
+//                {
+//                    // Create a target for this individual metric job
+//                    targets.add(new JsonObject()
+//                        .put(IP_ADDRESS, ip)
+//                        .put(PORT, job.getInteger(PORT))
+//                        .put(USER, job.getJsonObject(CRED_DATA).getString(USER))
+//                        .put(PASSWORD, job.getJsonObject(CRED_DATA).getString(PASSWORD))
+//                        .put(PROVISIONING_JOB_ID, job.getLong(PROVISIONING_JOB_ID))
+//                        .put(METRIC_NAME, job.getString(METRIC_NAME))
+//                        .put(PROTOCOL, job.getString(PROTOCOL))
+//                        .put(PLUGIN_TYPE, LINUX + job.getString(METRIC_NAME).toLowerCase()));
+//                }
+//            }
+//
+//            if (targets.isEmpty())
+//            {
+//                LOGGER.info("No reachable targets for polling");
+//
+//                return;
+//            }
+//
+//            var pluginInput = new JsonObject()
+//                .put(REQUEST_TYPE, POLLING)
+//                .put(TARGETS, targets);
+//
+//            // send for plugin
+//            vertx.eventBus().send(PLUGIN_EXECUTE, pluginInput);
+//
+//            LOGGER.info("Sent polling plugin input: {}", pluginInput.encodePrettily());
+//        }
+//        catch (Exception exception)
+//        {
+//            LOGGER.error("Polling failed: {}", exception.getMessage());
+//        }
+//    }
+
     private void pollJobs(List<JsonObject> jobs)
     {
         try
@@ -80,59 +144,76 @@ public class Polling extends AbstractVerticle
                 .distinct()
                 .collect(Collectors.toList());
 
-            // Check reachability for all IPs
-            var reachResults = Utility.checkReachability(ips, 22);
-
-            var targets = new JsonArray();
-
-            // Process each job individually
-            for (var job : jobs)
-            {
-                var ip = job.getString(IP);
-
-                // Find reachability result for this IP
-                var reachResult = reachResults.stream()
-                    .map(obj -> (JsonObject) obj)
-                    .filter(res -> res.getString(IP).equals(ip))
-                    .findFirst()
-                    .orElse(null);
-
-                if (reachResult != null && reachResult.getBoolean("reachable") && reachResult.getBoolean("port_open"))
+            // Use executeBlocking to avoid blocking the event loop
+            vertx.<JsonArray>executeBlocking(promise -> {
+                try
                 {
-                    // Create a target for this individual metric job
-                    targets.add(new JsonObject()
-                        .put(IP_ADDRESS, ip)
-                        .put(PORT, job.getInteger(PORT))
-                        .put(USER, job.getJsonObject(CRED_DATA).getString(USER))
-                        .put(PASSWORD, job.getJsonObject(CRED_DATA).getString(PASSWORD))
-                        .put(PROVISIONING_JOB_ID, job.getLong(PROVISIONING_JOB_ID))
-                        .put(METRIC_NAME, job.getString(METRIC_NAME))
-                        .put(PROTOCOL, job.getString(PROTOCOL))
-                        .put(PLUGIN_TYPE, LINUX));
+                    var reachResults = Utility.checkReachability(ips, 22);
+
+                    promise.complete(reachResults);
                 }
-            }
+                catch (Exception e)
+                {
+                    promise.fail(e);
+                }
+            }, res -> {
+                if (res.succeeded())
+                {
+                    var reachResults = res.result();
 
-            if (targets.isEmpty())
-            {
-                LOGGER.info("No reachable targets for polling");
+                    var targets = new JsonArray();
 
-                return;
-            }
+                    // Process each job individually
+                    for (var job : jobs)
+                    {
+                        var ip = job.getString(IP);
 
-            var pluginInput = new JsonObject()
-                .put(REQUEST_TYPE, POLLING)
-                .put(TARGETS, targets);
+                        // Find reachability result for this IP
+                        var reachResult = reachResults.stream()
+                            .map(obj -> (JsonObject) obj)
+                            .filter(resObj -> resObj.getString(IP).equals(ip))
+                            .findFirst()
+                            .orElse(null);
 
-            // send for plugin
-            vertx.eventBus().send(PLUGIN_EXECUTE, pluginInput);
+                        if (reachResult != null && reachResult.getBoolean("reachable") && reachResult.getBoolean("port_open"))
+                        {
+                            targets.add(new JsonObject()
+                                .put(IP_ADDRESS, ip)
+                                .put(PORT, job.getInteger(PORT))
+                                .put(USER, job.getJsonObject(CRED_DATA).getString(USER))
+                                .put(PASSWORD, job.getJsonObject(CRED_DATA).getString(PASSWORD))
+                                .put(PROVISIONING_JOB_ID, job.getLong(PROVISIONING_JOB_ID))
+                                .put(METRIC_NAME, job.getString(METRIC_NAME))
+                                .put(PROTOCOL, job.getString(PROTOCOL))
+                                .put(PLUGIN_TYPE, LINUX + job.getString(METRIC_NAME).toLowerCase()));
+                        }
+                    }
 
-            LOGGER.info("Sent polling plugin input: {}", pluginInput.encodePrettily());
+                    if (targets.isEmpty())
+                    {
+                        LOGGER.info("No reachable targets for polling");
+                        return;
+                    }
+
+                    var pluginInput = new JsonObject()
+                        .put(REQUEST_TYPE, POLLING)
+                        .put(TARGETS, targets);
+
+                    vertx.eventBus().send(PLUGIN_EXECUTE, pluginInput);
+
+                    LOGGER.info("Sent polling plugin input: {}", pluginInput.encodePrettily());
+                }
+                else
+                {
+                    LOGGER.error("Reachability check failed", res.cause());
+                }
+            });
         }
         catch (Exception exception)
         {
             LOGGER.error("Polling failed: {}", exception.getMessage());
         }
     }
+
 }
 
-//// TOD0 : event-driven
