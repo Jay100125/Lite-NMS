@@ -69,6 +69,7 @@ public class Discovery extends AbstractAPI
             {
                 return;
             }
+
             // Extract JSON request body
             var body = context.body().asJsonObject();
 

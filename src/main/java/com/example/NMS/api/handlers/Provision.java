@@ -2,7 +2,6 @@ package com.example.NMS.api.handlers;
 
 import com.example.NMS.cache.MetricCache;
 import com.example.NMS.constant.QueryConstant;
-//import com.example.NMS.service.ProvisionService;
 import com.example.NMS.utility.APIUtils;
 import com.example.NMS.utility.Validator;
 import io.vertx.core.json.JsonArray;
@@ -56,6 +55,12 @@ public class Provision extends AbstractAPI
         provisionRouter.put("/api/provision/:id/metrics").handler(this::update);
 
         provisionRouter.get("/api/polled-data").handler(this::getAllPolledData);
+
+
+        provisionRouter.get("/api/polled-data/:id").handler(ctx ->
+            super.getById(ctx, QueryConstant.GET_POLLED_DATA_BY_JOB_ID)
+        );
+
     }
 
     /**
@@ -376,5 +381,37 @@ public class Provision extends AbstractAPI
         }
     }
 
+    public void getAllPolledDataById(RoutingContext context)
+    {
+        try
+        {
+            var query = new JsonObject()
+                .put(QUERY, QueryConstant.GET_POLLED_DATA_BY_JOB_ID);
+
+            executeQuery(query)
+                .onComplete(queryResult ->
+                {
+                    if(queryResult.succeeded())
+                    {
+                        var result = queryResult.result();
+
+                        APIUtils.sendSuccess(context,200,"Result of polling data" ,result);
+
+                    }
+                    else
+                    {
+                        var error = queryResult.cause();
+
+                        APIUtils.sendError(context, 500, "Database query failed: " + error.getMessage());
+                    }
+                });
+        }
+        catch (Exception exception)
+        {
+            LOGGER.error("Error fetching polled data: {}", exception.getMessage());
+
+            APIUtils.sendError(context, 500, "Internal server error");
+        }
+    }
 }
 

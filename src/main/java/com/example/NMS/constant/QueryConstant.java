@@ -69,8 +69,14 @@ public class QueryConstant
         "DELETE FROM provisioning_jobs WHERE id = $1 RETURNING id";
 
     public static final String GET_ALL_POLLED_DATA = """
-            SELECT id, job_id, metric_type, data, TO_CHAR(polled_at, 'YYYY-MM-DD"T"HH24:MI:SS') AS polled_at
+            SELECT id, job_id, metric_type, data, polled_at
             FROM polled_data""";
+
+    public static final String GET_POLLED_DATA_BY_JOB_ID = """
+            SELECT id, job_id, metric_type, data, polled_at
+            FROM polled_data
+            WHERE job_id = $1
+            ORDER BY polled_at DESC""";
 
 
     public static final String REGISTER_USER = "INSERT INTO users (username, password) VALUES ($1, $2) RETURNING id";
