@@ -201,7 +201,7 @@ public class Polling extends AbstractVerticle
 
                     vertx.eventBus().send(PLUGIN_EXECUTE, pluginInput);
 
-                    LOGGER.info("Sent polling plugin input: {}", pluginInput.encodePrettily());
+                    LOGGER.info("Sent polling plugin input with {} target(s)", targets.size());
                 }
                 else
                 {

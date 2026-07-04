@@ -62,6 +62,11 @@ public class Server extends AbstractVerticle
 
         var provisionRoute = Router.router(vertx);
 
+        // Public, unauthenticated observability endpoints (must remain scrapeable without a JWT)
+        router.get("/health").handler(ctx -> ctx.json(new JsonObject().put("status", "UP")));
+
+        router.get("/metrics").handler(io.vertx.micrometer.PrometheusScrapingHandler.create());
+
         router.route("/api/*").handler(CorsHandler.create()
             .addOrigin("http://localhost:3000") // Your frontend URL
             .allowCredentials(true)

@@ -23,7 +23,12 @@ public class Main
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(Main.class);
 
-    public static final Vertx vertx = Vertx.vertx(new VertxOptions().setMaxWorkerExecuteTime(MAX_WORKER_EXECUTION_TIME).setMaxWorkerExecuteTimeUnit(TimeUnit.SECONDS));
+    public static final Vertx vertx = Vertx.vertx(new VertxOptions()
+        .setMaxWorkerExecuteTime(MAX_WORKER_EXECUTION_TIME)
+        .setMaxWorkerExecuteTimeUnit(TimeUnit.SECONDS)
+        .setMetricsOptions(new io.vertx.micrometer.MicrometerMetricsOptions()
+            .setPrometheusOptions(new io.vertx.micrometer.VertxPrometheusOptions().setEnabled(true))
+            .setEnabled(true)));
 
     public static void main(String[] args)
     {

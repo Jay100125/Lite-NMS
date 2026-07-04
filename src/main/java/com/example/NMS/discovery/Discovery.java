@@ -140,7 +140,7 @@ public class Discovery extends AbstractVerticle
             .put(DISCOVERY_ID, discoveryId)
             .put(TARGETS, targets);
 
-        LOGGER.info("Plugin input: {}", pluginInput.encodePrettily());
+        LOGGER.info("Dispatching plugin input for discovery ID {} with {} target(s)", discoveryId, targets.size());
 
         vertx.eventBus().send(PLUGIN_EXECUTE, pluginInput);
 

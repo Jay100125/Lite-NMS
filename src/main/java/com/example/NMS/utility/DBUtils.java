@@ -28,7 +28,7 @@ public class DBUtils
                    {
                        var result = message.body();
 
-                       LOGGER.info("Database query executed: {}", query);
+                       LOGGER.info("Database query executed: {}", query.getString(QUERY));
 
                        return result;
                    })
