@@ -61,6 +61,8 @@ public class Provision extends AbstractAPI
             super.getById(ctx, QueryConstant.GET_POLLED_DATA_BY_JOB_ID)
         );
 
+        provisionRouter.get("/api/availability/:jobId").handler(this::getAvailability);
+
     }
 
     /**
@@ -376,6 +378,58 @@ public class Provision extends AbstractAPI
         catch (Exception exception)
         {
             LOGGER.error("Error fetching polled data: {}", exception.getMessage());
+
+            APIUtils.sendError(context, 500, "Internal server error");
+        }
+    }
+
+    /**
+     * Handles GET requests to retrieve the availability record for a provisioning job.
+     * Fetches the device_availability row keyed by provisioning_job_id and returns it as JSON.
+     *
+     * @param context The routing context containing the HTTP request with the provisioning job ID.
+     */
+    public void getAvailability(RoutingContext context)
+    {
+        try
+        {
+            var jobId = APIUtils.parseIdFromPath(context, JOB_ID_PATH_PARAM);
+
+            if (jobId == -1) return;
+
+            var query = new JsonObject()
+                .put(QUERY, QueryConstant.GET_AVAILABILITY_BY_JOB)
+                .put(PARAMS, new JsonArray().add(jobId));
+
+            executeQuery(query)
+                .onComplete(queryResult ->
+                {
+                    if (queryResult.succeeded())
+                    {
+                        var result = queryResult.result();
+
+                        if (result != null && !result.isEmpty())
+                        {
+                            APIUtils.sendSuccess(context, 200, "Device availability", result);
+                        }
+                        else
+                        {
+                            APIUtils.sendError(context, 404, "Availability data not found for job id: " + jobId);
+                        }
+                    }
+                    else
+                    {
+                        var error = queryResult.cause();
+
+                        LOGGER.error("Failed to fetch availability for job {}: {}", jobId, error.getMessage());
+
+                        APIUtils.sendError(context, 500, "Database query failed: " + error.getMessage());
+                    }
+                });
+        }
+        catch (Exception exception)
+        {
+            LOGGER.error("Error fetching availability: {}", exception.getMessage());
 
             APIUtils.sendError(context, 500, "Internal server error");
         }

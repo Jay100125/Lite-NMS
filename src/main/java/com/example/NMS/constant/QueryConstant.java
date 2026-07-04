@@ -264,4 +264,6 @@ public class QueryConstant
                 availability_pct = ROUND(((device_availability.up_samples + $2) * 100.0) / (device_availability.total_samples + 1), 2),
                 is_up = $3,
                 last_change = CASE WHEN device_availability.is_up <> $3 THEN now() ELSE device_availability.last_change END""";
+
+    public static final String GET_AVAILABILITY_BY_JOB = "SELECT * FROM device_availability WHERE provisioning_job_id = $1";
 }

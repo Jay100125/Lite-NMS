@@ -63,6 +63,8 @@ public class Constant {
 
     public static final String ID = "id";
 
+    public static final String JOB_ID_PATH_PARAM = "jobId";
+
     public static final String PROTOCOL = "protocol";
 
     public static final String LINUX = "linux";
