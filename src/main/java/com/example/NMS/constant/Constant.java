@@ -14,11 +14,13 @@ public class Constant {
 
     public static final String DISCOVERY_RUN = "discovery.run";
 
-    public static final String DISCOVERY_STATUS_PENDING = "pending";
+    public static final String DISCOVERY_STATUS_PENDING = "PENDING";
 
-    public static final String DISCOVERY_STATUS_RUNNING = "running";
+    public static final String DISCOVERY_STATUS_RUNNING = "RUNNING";
 
-    public static final String DISCOVERY_STATUS_COMPLETED = "completed";
+    public static final String DISCOVERY_STATUS_COMPLETED = "COMPLETED";
+
+    public static final String DISCOVERY_STATUS_FAILED = "FAILED";
 
     public static final String EVENT_COMPLETION = "event.completion";
 

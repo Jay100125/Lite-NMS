@@ -129,7 +129,7 @@ public class Discovery extends AbstractVerticle
                     .put(RESULT, errorMsg)
                     .put(DISCOVERY_ID, discoveryId)
                     .put(CREDENTIAL_ID, null)
-                    .put(REQUEST_TYPE, DISCOVERY);
+                    .put(EVENT_TYPE, EVENT_DISCOVERY);
 
                 vertx.eventBus().send(STORAGE_RESULTS, unreachableResult);
             }
