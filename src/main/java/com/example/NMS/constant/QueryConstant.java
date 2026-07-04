@@ -12,7 +12,7 @@ public class QueryConstant
       UPDATE credential_profile
       SET credential_name = COALESCE($1, credential_name),
           system_type = COALESCE($2, system_type),
-          cred_data = COALESCE($3, cred_data)
+          cred_data = COALESCE($3::text, cred_data)
       WHERE id = $4
       RETURNING *""";
 

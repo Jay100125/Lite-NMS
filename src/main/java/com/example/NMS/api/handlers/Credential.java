@@ -182,7 +182,7 @@ public class Credential extends AbstractAPI
             var params = new JsonArray()
               .add(body.getString(CREDENTIAL_NAME)) // Can be null
               .add(protocol) // Can be null
-              .add(credentialData) // Can be null
+              .add(credentialData != null ? CryptoUtil.encrypt(credentialData.encode()) : null) // Encrypt at rest when present; null keeps existing (COALESCE)
               .add(id);
 
             var query = new JsonObject()
