@@ -126,6 +126,9 @@ public class Constant {
 
     public static final String STORAGE_RESULTS = "storage.results";
 
+    /** Dedicated address for per-poll availability samples, published by ResponseProcessor so it doesn't compete with the STORAGE_RESULTS consumer. */
+    public static final String AVAILABILITY_SAMPLE = "availability.sample";
+
     public static final int BATCH_SIZE = 25;
 
 

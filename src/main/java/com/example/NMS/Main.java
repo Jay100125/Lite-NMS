@@ -1,6 +1,7 @@
 package com.example.NMS;
 
 import com.example.NMS.api.Server;
+import com.example.NMS.availability.Availability;
 import com.example.NMS.database.Database;
 import com.example.NMS.discovery.Discovery;
 import com.example.NMS.plugin.Plugin;
@@ -41,6 +42,8 @@ public class Main
             .compose(response -> vertx.deployVerticle(Plugin.class.getName(),  new DeploymentOptions().setThreadingModel(ThreadingModel.WORKER)))
 
             .compose(response -> vertx.deployVerticle(ResponseProcessor.class.getName()))
+
+            .compose(response -> vertx.deployVerticle(Availability.class.getName()))
 
             .onComplete(handler -> {
 

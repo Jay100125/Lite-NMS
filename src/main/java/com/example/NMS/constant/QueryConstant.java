@@ -253,4 +253,15 @@ public class QueryConstant
 
 
     public static final String UPDATE_DISCOVERY_PROFILE_STATUS = "UPDATE discovery_profiles SET status = $1 WHERE id = $2";
+
+    // $1 = provisioning_job_id, $2 = up increment (1 if sample succeeded else 0), $3 = is_up (boolean of current sample)
+    public static final String UPSERT_AVAILABILITY = """
+            INSERT INTO device_availability (provisioning_job_id, is_up, up_samples, total_samples, availability_pct)
+            VALUES ($1, $3, $2, 1, CASE WHEN $3 THEN 100.0 ELSE 0.0 END)
+            ON CONFLICT (provisioning_job_id) DO UPDATE
+            SET total_samples = device_availability.total_samples + 1,
+                up_samples = device_availability.up_samples + $2,
+                availability_pct = ROUND(((device_availability.up_samples + $2) * 100.0) / (device_availability.total_samples + 1), 2),
+                is_up = $3,
+                last_change = CASE WHEN device_availability.is_up <> $3 THEN now() ELSE device_availability.last_change END""";
 }
