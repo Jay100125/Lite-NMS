@@ -1,6 +1,7 @@
 package com.example.NMS.api.handlers;
 
 import com.example.NMS.constant.QueryConstant;
+import com.example.NMS.util.CryptoUtil;
 import com.example.NMS.utility.APIUtils;
 import com.example.NMS.utility.Validator;
 import io.vertx.core.json.JsonArray;
@@ -87,10 +88,10 @@ public class Credential extends AbstractAPI
                 return;
             }
 
-            // Prepare database query to insert the new credential
+            // Prepare database query to insert the new credential (cred_data encrypted at rest)
             var insertQuery = new JsonObject()
               .put(QUERY, INSERT_CREDENTIAL)
-              .put(PARAMS, new JsonArray().add(credentialName).add(protocol).add(credentialData));
+              .put(PARAMS, new JsonArray().add(credentialName).add(protocol).add(CryptoUtil.encrypt(credentialData.encode())));
 
             executeQuery(insertQuery)
                 .onComplete(queryResult ->
@@ -102,6 +103,8 @@ public class Credential extends AbstractAPI
                         if (result.isEmpty())
                         {
                             APIUtils.sendError(context, 409, "Cannot create credential");
+
+                            return;
                         }
 
                         APIUtils.sendSuccess(context,201, "Credential profile created", result);
