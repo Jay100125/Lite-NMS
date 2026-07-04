@@ -6,7 +6,7 @@
 
 **Architecture:** Verticle-per-concern over an event-bus Postgres layer, unchanged in shape. The backend builds a typed **envelope** (spec §4), writes it to a temp file, and spawns the Go engine (`plugin/Lite_NMS_Plugin <file>`) from a **WORKER** verticle that drains stdout and stderr **concurrently**. Results route on the always-present `event_type` discriminator. Secrets come from the environment; device credentials are AES-GCM encrypted at rest. A Micrometer/Prometheus registry and `/health` expose system state.
 
-**Tech Stack:** Java 17, Vert.x 4.5.14 (`vertx-web`, `vertx-pg-client`, `vertx-auth-jwt`, `vertx-config`, `vertx-micrometer-metrics`), Micrometer Prometheus, JUnit 5, Testcontainers-Postgres, BCrypt (jBCrypt).
+**Tech Stack:** Java 17, Vert.x 4.5.14 (`vertx-web`, `vertx-pg-client`, `vertx-auth-jwt`, `vertx-config`, `vertx-micrometer-metrics`), Micrometer Prometheus, JUnit 5, BCrypt (jBCrypt). Integration tests run against a **local PostgreSQL** using an ephemeral throwaway database created/dropped per run (Docker-free; env-configurable). CI uses a Postgres service container.
 
 **Repo:** `/home/jay-patel/personal/Lite-NMS` — execute all tasks here on the existing `v2` branch (created during spec commit).
 
@@ -17,7 +17,7 @@
 - No secrets in source or logs: `DB_PASSWORD`, `JWT_SECRET`, and the credential-encryption key come from environment variables; credential payloads are never logged.
 - One canonical status vocabulary everywhere (schema CHECK ↔ Java constants ↔ engine): discovery profile `PENDING|RUNNING|COMPLETED|FAILED`; discovery result `COMPLETED|FAILED`; plugin_type `LINUX|SNMP|WINRM`.
 - DDL runs sequentially (FK-safe).
-- TDD: failing test first; integration tests use Testcontainers-Postgres (no external DB).
+- TDD: failing test first; integration tests connect to a local PostgreSQL (env `NMS_TEST_DB_*`, defaults `127.0.0.1:5432` / role `nms_test` / password `nms_test`) and create+drop a uniquely-named throwaway database per run — no Docker. A one-time role setup (`scripts/test-db-setup.sql`, run as the postgres superuser) provisions the `nms_test` CREATEDB role.
 - Commit trailer on every commit: `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`.
 
 ---
@@ -40,7 +40,7 @@ Lite-NMS/
     constant/Constant.java                    # canonical status vocab + new field keys
     constant/QueryConstant.java               # queries aligned to reconciled schema
   src/test/java/com/example/NMS/
-    support/PgTestBase.java                   # NEW: Testcontainers-Postgres base
+    support/PgTestBase.java                   # NEW: local-Postgres throwaway-db base (no Docker)
     util/CryptoUtilTest.java
     plugin/PluginEnvelopeTest.java
     plugin/ResponseProcessorRoutingTest.java
@@ -52,18 +52,20 @@ Lite-NMS/
 
 ---
 
-### Task 1: Dependencies + Testcontainers base
+### Task 1: Dependencies + local-Postgres test base
 
 **Files:**
 - Modify: `pom.xml`
-- Create: `src/test/java/com/example/NMS/support/PgTestBase.java`
+- Create: `src/test/java/com/example/NMS/support/PgTestBase.java`, `scripts/test-db-setup.sql`
 
 **Interfaces:**
-- Produces: `PgTestBase` exposing `static PgPool pool()` connected to a fresh Postgres container with `schema.sql` applied; JUnit5 lifecycle starts/stops the container.
+- Produces: `PgTestBase` exposing `protected static PgPool pool` (and `protected static Vertx vertx`) connected to a freshly-created throwaway database (on a local Postgres, env-configurable) with `schema.sql` applied; JUnit5 `@BeforeAll`/`@AfterAll` create and drop that database. **This public surface (`pool`, `vertx`) is what Tasks 2/8/10/11 extend — keep those names.**
+
+**Environment note:** the local Postgres role is provisioned once (already done in this environment) via `scripts/test-db-setup.sql`. JVM tests connect over TCP with a password; there is no Docker dependency.
 
 - [ ] **Step 1: Add dependencies to pom.xml**
 
-Inside `<dependencies>` add:
+Inside `<dependencies>` add (NO Testcontainers — this environment has no Docker):
 ```xml
     <dependency>
       <groupId>io.vertx</groupId>
@@ -83,21 +85,25 @@ Inside `<dependencies>` add:
       <artifactId>jbcrypt</artifactId>
       <version>0.4</version>
     </dependency>
-    <dependency>
-      <groupId>org.testcontainers</groupId>
-      <artifactId>postgresql</artifactId>
-      <version>1.19.7</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.testcontainers</groupId>
-      <artifactId>junit-jupiter</artifactId>
-      <version>1.19.7</version>
-      <scope>test</scope>
-    </dependency>
+```
+(The `vertx-junit5` and JUnit deps already present in the pom remain.)
+
+- [ ] **Step 2: Write the one-time role setup script**
+
+`scripts/test-db-setup.sql` (run once by an admin: `sudo -u postgres psql -f scripts/test-db-setup.sql`):
+```sql
+-- Provisions the throwaway-test role used by PgTestBase. Idempotent.
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='nms_test') THEN
+    CREATE ROLE nms_test LOGIN PASSWORD 'nms_test' CREATEDB;
+  END IF;
+END $$;
+-- The admin/bootstrap database PgTestBase connects to in order to CREATE/DROP throwaway DBs:
+SELECT 'CREATE DATABASE nms_test OWNER nms_test'
+WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname='nms_test')\gexec
 ```
 
-- [ ] **Step 2: Write the Testcontainers base**
+- [ ] **Step 3: Write the local-Postgres test base**
 
 `src/test/java/com/example/NMS/support/PgTestBase.java`:
 ```java
@@ -109,27 +115,49 @@ import io.vertx.pgclient.PgPool;
 import io.vertx.sqlclient.PoolOptions;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.testcontainers.containers.PostgreSQLContainer;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.UUID;
 
+/**
+ * Base for DB integration tests. Creates a uniquely-named throwaway database on a
+ * local PostgreSQL (env-configurable), applies schema.sql, and drops it after.
+ * No Docker required. Subclasses use the static {@code pool}.
+ */
 public abstract class PgTestBase {
-    protected static PostgreSQLContainer<?> PG;
+    private static String env(String k, String d) {
+        String v = System.getenv(k);
+        return (v == null || v.isBlank()) ? d : v;
+    }
+
+    private static final String HOST = env("NMS_TEST_DB_HOST", "127.0.0.1");
+    private static final int PORT = Integer.parseInt(env("NMS_TEST_DB_PORT", "5432"));
+    private static final String ADMIN_DB = env("NMS_TEST_DB_ADMIN", "nms_test");
+    private static final String USER = env("NMS_TEST_DB_USER", "nms_test");
+    private static final String PASSWORD = env("NMS_TEST_DB_PASSWORD", "nms_test");
+
     protected static Vertx vertx;
     protected static PgPool pool;
+    private static String dbName;
+
+    private static PgConnectOptions opts(String database) {
+        return new PgConnectOptions().setHost(HOST).setPort(PORT)
+            .setDatabase(database).setUser(USER).setPassword(PASSWORD);
+    }
 
     @BeforeAll
     static void startDb() throws Exception {
-        PG = new PostgreSQLContainer<>("postgres:16-alpine")
-            .withDatabaseName("nms").withUsername("nms").withPassword("nms");
-        PG.start();
-
         vertx = Vertx.vertx();
-        pool = PgPool.pool(vertx, new PgConnectOptions()
-            .setHost(PG.getHost()).setPort(PG.getFirstMappedPort())
-            .setDatabase("nms").setUser("nms").setPassword("nms"),
-            new PoolOptions().setMaxSize(4));
+        dbName = "nms_test_" + UUID.randomUUID().toString().replace("-", "");
+
+        // Create the throwaway database via a short-lived admin pool (simple-query protocol).
+        PgPool admin = PgPool.pool(vertx, opts(ADMIN_DB), new PoolOptions().setMaxSize(1));
+        admin.query("CREATE DATABASE \"" + dbName + "\"").execute()
+            .toCompletionStage().toCompletableFuture().get();
+        admin.close();
+
+        pool = PgPool.pool(vertx, opts(dbName), new PoolOptions().setMaxSize(4));
 
         String ddl = Files.readString(Path.of("src/main/resources/schema.sql"));
         for (String stmt : ddl.split(";")) {
@@ -141,24 +169,29 @@ public abstract class PgTestBase {
     }
 
     @AfterAll
-    static void stopDb() {
+    static void stopDb() throws Exception {
         if (pool != null) pool.close();
+        PgPool admin = PgPool.pool(vertx, opts(ADMIN_DB), new PoolOptions().setMaxSize(1));
+        admin.query("DROP DATABASE IF EXISTS \"" + dbName + "\" WITH (FORCE)").execute()
+            .toCompletionStage().toCompletableFuture().get();
+        admin.close();
         if (vertx != null) vertx.close();
-        if (PG != null) PG.stop();
     }
 }
 ```
 
-- [ ] **Step 3: Verify it compiles and the container starts (via the schema test in Task 2)**
+Note: because each run uses a fresh database, `schema.sql` uses plain (non-idempotent) DDL — the `split(";")` loader assumes no semicolons inside statements, so keep `schema.sql` free of `DO $$ … $$` blocks and function bodies (Task 2 honors this).
 
-Run: `mvn -q -DskipTests compile`
-Expected: BUILD SUCCESS.
+- [ ] **Step 4: Verify it compiles**
 
-- [ ] **Step 4: Commit**
+Run: `./mvnw -q -DskipTests compile test-compile`
+Expected: BUILD SUCCESS. (The base is exercised by the schema test in Task 2.)
+
+- [ ] **Step 5: Commit**
 
 ```bash
-git add pom.xml src/test/java/com/example/NMS/support/PgTestBase.java
-git commit -m "test: add Testcontainers-Postgres base and v2 dependencies
+git add pom.xml src/test/java/com/example/NMS/support/PgTestBase.java scripts/test-db-setup.sql
+git commit -m "test: add local-Postgres throwaway-db test base and v2 dependencies
 
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ```
@@ -311,7 +344,7 @@ CREATE INDEX IF NOT EXISTS idx_provisioning_jobs_ip ON provisioning_jobs(ip);
 CREATE INDEX IF NOT EXISTS idx_polled_data_polled_at ON polled_data(polled_at);
 ```
 
-Note: `CREATE TYPE` is not idempotent. `PgTestBase` runs on a fresh container each time so this is fine; for repeated real DBs, wrap in a `DO $$ ... EXCEPTION WHEN duplicate_object THEN null; $$` block. Add that guard when you wire real-DB migration in Task 3.
+Note: `CREATE TYPE` is not idempotent, and `PgTestBase` loads `schema.sql` by splitting on `;`, so **keep every statement free of inner semicolons** — do NOT wrap `CREATE TYPE` in a `DO $$ … $$` block here (that would break the naive splitter). Each test run uses a fresh throwaway database, so plain non-idempotent DDL is correct. For repeated real-DB migration, handle idempotency in the application's migration path (Task 3 / `Database.java`), not in this file.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -1116,7 +1149,7 @@ Expected: BUILD SUCCESS, all tests pass.
 
 - [ ] **Step 2: Write the CI workflow**
 
-`.github/workflows/ci.yml`:
+`.github/workflows/ci.yml` — the backend job runs a Postgres **service container** (Docker is available on GitHub runners) and points `PgTestBase` at it via the `NMS_TEST_DB_*` env vars; the `nms_test` role is created in a bootstrap step:
 ```yaml
 name: CI
 on:
@@ -1126,24 +1159,42 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: nms_test
+          POSTGRES_PASSWORD: nms_test
+          POSTGRES_DB: nms_test
+        ports: [ "5432:5432" ]
+        options: >-
+          --health-cmd "pg_isready -U nms_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      NMS_TEST_DB_HOST: 127.0.0.1
+      NMS_TEST_DB_PORT: "5432"
+      NMS_TEST_DB_ADMIN: nms_test
+      NMS_TEST_DB_USER: nms_test
+      NMS_TEST_DB_PASSWORD: nms_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '17' }
+      - name: Grant CREATEDB to test role
+        run: PGPASSWORD=nms_test psql -h 127.0.0.1 -U nms_test -d nms_test -c "ALTER ROLE nms_test CREATEDB;"
       - run: ./mvnw -B verify
   engine:
     runs-on: ubuntu-latest
-    defaults: { run: { working-directory: ../NMSLITE_PLUGIN } }
     steps:
       - uses: actions/checkout@v4
         with: { repository: Jay100125/NMSLITE_PLUGIN, path: NMSLITE_PLUGIN }
       - uses: actions/setup-go@v5
-        with: { go-version: '1.24' }
+        with: { go-version: '1.25' }
       - run: go test ./...
         working-directory: NMSLITE_PLUGIN
 ```
 
-Note: the two repos are separate; the `engine` job checks out `NMSLITE_PLUGIN` explicitly. If you prefer one workflow per repo, put the `engine` job in a workflow committed to `NMSLITE_PLUGIN` instead.
+Note: the two repos are separate; the `engine` job checks out `NMSLITE_PLUGIN` explicitly (Go 1.25, matching the engine's `go.mod`). If you prefer one workflow per repo, put the `engine` job in a workflow committed to `NMSLITE_PLUGIN` instead. The backend job's Postgres service provides the same `nms_test` role the local `PgTestBase` expects, so tests run identically in CI and locally.
 
 - [ ] **Step 3: Update .gitignore and remove cruft**
 
