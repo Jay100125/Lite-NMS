@@ -1,5 +1,6 @@
 package com.example.NMS.api;
 
+import com.example.NMS.config.AppConfig;
 import com.example.NMS.api.handlers.Auth;
 import com.example.NMS.api.handlers.Credential;
 import com.example.NMS.api.handlers.Discovery;
@@ -47,7 +48,7 @@ public class Server extends AbstractVerticle
         var jwtAuth = JWTAuth.create(vertx, new JWTAuthOptions()
                                         .addPubSecKey(new PubSecKeyOptions()
                                                             .setAlgorithm("HS256")
-                                                           .setBuffer(JWT_SECRET)));
+                                                           .setBuffer(AppConfig.jwtSecret())));
 
         // Create the main router for the application
         var router = Router.router(vertx);

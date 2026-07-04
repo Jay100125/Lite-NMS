@@ -1,5 +1,6 @@
 package com.example.NMS.database;
 
+import com.example.NMS.config.AppConfig;
 import io.vertx.core.Vertx;
 import io.vertx.pgclient.PgBuilder;
 import io.vertx.pgclient.PgConnectOptions;
@@ -26,11 +27,11 @@ public class DatabaseClient
       LOGGER.info("Initializing database connection pool...");
 
       var connectOptions = new PgConnectOptions()
-        .setHost(DB_HOST)
-        .setPort(DB_PORT)
-        .setDatabase(DB_NAME)
-        .setUser(DB_USER)
-        .setPassword(DB_PASSWORD);
+        .setHost(AppConfig.dbHost())
+        .setPort(AppConfig.dbPort())
+        .setDatabase(AppConfig.dbName())
+        .setUser(AppConfig.dbUser())
+        .setPassword(AppConfig.dbPassword());
 
       var poolOptions = new PoolOptions()
         .setMaxSize(10)
