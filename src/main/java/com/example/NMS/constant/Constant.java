@@ -65,7 +65,7 @@ public class Constant {
 
     public static final String LINUX = "linux";
 
-    public static final String PLUGIN_TYPE = "plugin.type";
+    public static final String PLUGIN_TYPE = "plugin_type";
 
     public static final String DISCOVERY_PROFILE_NAME = "discovery_profile_name";
 
@@ -96,6 +96,17 @@ public class Constant {
     public static final String IS_ENABLED = "is_enabled";
 
     public static final String REQUEST_TYPE = "request.type";
+
+    /** Always-present discriminator on engine result lines (v2 spec §4.2). */
+    public static final String EVENT_TYPE = "event_type";
+
+    public static final String JOB_ID = "job_id";
+
+    public static final String REQUEST_ID = "request_id";
+
+    public static final String EVENT_POLL = "poll";
+
+    public static final String EVENT_DISCOVERY = "discovery";
 
     public static final String DISCOVERY = "discovery";
 

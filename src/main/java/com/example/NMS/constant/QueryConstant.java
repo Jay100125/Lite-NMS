@@ -35,9 +35,9 @@ public class QueryConstant
 
     public static final String DELETE_DISCOVERY_CREDENTIALS = "DELETE FROM discovery_credential_mapping WHERE discovery_id = $1";
 
-    public static final String INSERT_DISCOVERY = "INSERT INTO discovery_profiles (discovery_profile_name, ip, port, status) VALUES ($1, $2, $3, FALSE) RETURNING id";
+    public static final String INSERT_DISCOVERY = "INSERT INTO discovery_profiles (discovery_profile_name, ip, port, status) VALUES ($1, $2, $3, 'PENDING') RETURNING id";
 
-    public static final String UPDATE_DISCOVERY = "UPDATE discovery_profiles SET discovery_profile_name = $1, ip = $2, port = $3, status = FALSE WHERE id = $4 RETURNING id";
+    public static final String UPDATE_DISCOVERY = "UPDATE discovery_profiles SET discovery_profile_name = $1, ip = $2, port = $3, status = 'PENDING' WHERE id = $4 RETURNING id";
 
     public static final String SET_DISCOVERY_STATUS = "UPDATE discovery_profiles SET status = $1 WHERE id = $2 RETURNING id";
 
@@ -119,7 +119,7 @@ public class QueryConstant
         FROM discovery_result dr
         JOIN input_ips i ON dr.ip = i.ip
         WHERE dr.discovery_id = $1
-        AND dr.result = 'success'
+        AND dr.result = 'COMPLETED'
     ),
     invalid_ips AS (
         SELECT
@@ -130,7 +130,7 @@ public class QueryConstant
             END AS error
         FROM input_ips i
         LEFT JOIN discovery_result dr ON dr.ip = i.ip AND dr.discovery_id = $1
-        WHERE dr.ip IS NULL OR dr.result != 'success'
+        WHERE dr.ip IS NULL OR dr.result != 'COMPLETED'
     ),
     inserted_provisioning_jobs AS (
         INSERT INTO provisioning_jobs (credential_profile_id, ip, port)

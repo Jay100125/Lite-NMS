@@ -8,8 +8,6 @@ import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Optional;
-
 import static com.example.NMS.constant.Constant.*;
 
 /**
@@ -26,6 +24,24 @@ public class ResponseProcessor extends AbstractVerticle
 
     private long timerId = -1;
 
+    /** Routing decision based on the always-present event_type discriminator. */
+    public static String classify(JsonObject result)
+    {
+        var eventType = result.getString(EVENT_TYPE);
+
+        if (EVENT_POLL.equals(eventType))
+        {
+            return EVENT_POLL;
+        }
+
+        if (EVENT_DISCOVERY.equals(eventType))
+        {
+            return EVENT_DISCOVERY;
+        }
+
+        return "unknown";
+    }
+
     @Override
     public void start(Promise<Void> startPromise)
     {
@@ -33,26 +49,11 @@ public class ResponseProcessor extends AbstractVerticle
         {
             var data = message.body();
 
-            var requestType = data.getString(REQUEST_TYPE);
-
-            if (DISCOVERY.equals(requestType))
+            switch (classify(data))
             {
-                storeDiscoveryResults(data);
-            }
-            else if (POLLING.equals(requestType))
-            {
-                pollResultsBuffer.add(data);
-
-                if (pollResultsBuffer.size() >= BATCH_SIZE)
-                {
-                    storePollResults(new JsonObject().put("results", pollResultsBuffer));
-
-                    pollResultsBuffer.clear();
-                }
-            }
-            else
-            {
-                LOGGER.error("Unknown request type: {}", Optional.ofNullable(requestType));
+                case EVENT_DISCOVERY -> storeDiscoveryResults(data);
+                case EVENT_POLL -> bufferPollResult(data);
+                default -> LOGGER.error("Unknown event_type on result: {}", data.getString(REQUEST_ID));
             }
         });
 
@@ -101,6 +102,18 @@ public class ResponseProcessor extends AbstractVerticle
         stopPromise.complete();
     }
 
+    private void bufferPollResult(JsonObject data)
+    {
+        pollResultsBuffer.add(data);
+
+        if (pollResultsBuffer.size() >= BATCH_SIZE)
+        {
+            storePollResults(new JsonObject().put("results", pollResultsBuffer));
+
+            pollResultsBuffer.clear();
+        }
+    }
+
     private void storePollResults(JsonObject data)
     {
         var results = data.getJsonArray("results");
@@ -120,9 +133,9 @@ public class ResponseProcessor extends AbstractVerticle
 
             if (SUCCESS.equals(resultObj.getString(STATUS)))
             {
-                var jobId = resultObj.getLong(PROVISIONING_JOB_ID);
+                var jobId = resultObj.getLong(JOB_ID);
 
-                var metricsData = resultObj.getJsonObject("data");
+                var metricsData = resultObj.getJsonObject(RESULT);
 
                 var timestamp = resultObj.getLong("timestamp");
 
@@ -155,11 +168,17 @@ public class ResponseProcessor extends AbstractVerticle
 
     private void storeDiscoveryResults(JsonObject data)
     {
+        var status = data.getString(STATUS);
+
+        // Canonical discovery_result vocabulary is COMPLETED|FAILED (Task 2 schema);
+        // the engine's own status field remains success|failed.
+        var discoveryResult = SUCCESS.equals(status) ? "COMPLETED" : "FAILED";
+
         var queryParams = new JsonArray()
             .add(data.getInteger(DISCOVERY_ID))
             .add(data.getString(IP))
             .add(data.getInteger(PORT))
-            .add(data.getString(STATUS))
+            .add(discoveryResult)
             .add(data.getString(RESULT))
             .add(data.getValue(CREDENTIAL_ID));
 
