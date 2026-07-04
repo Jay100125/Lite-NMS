@@ -8,7 +8,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
-import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -37,20 +36,37 @@ public class Plugin extends AbstractVerticle {
     private void executePlugin(JsonObject envelope) {
         Path envFile = null;
         Process process = null;
+        Thread stderrThread = null;
+        Thread watchdog = null;
         try {
-            // Envelope to a temp file passed as arg (engine reads and deletes it).
             String encoded = Base64.getEncoder().encodeToString(
                 envelope.encode().getBytes(StandardCharsets.UTF_8));
             envFile = Files.createTempFile("nms-env-", ".b64");
             Files.writeString(envFile, encoded);
 
             process = new ProcessBuilder(BINARY, envFile.toString()).start();
+            final Process p = process;
 
             // Drain stderr on a separate thread so a full stderr pipe cannot deadlock stdout.
-            Process p = process;
-            Thread stderrThread = new Thread(() -> drainStderr(p));
+            stderrThread = new Thread(() -> drainStderr(p));
             stderrThread.setDaemon(true);
             stderrThread.start();
+
+            // Watchdog enforces a hard wall-clock timeout even if the engine hangs without
+            // closing stdout: it force-destroys the process, which EOFs stdout and unblocks
+            // the read loop below.
+            watchdog = new Thread(() -> {
+                try {
+                    if (!p.waitFor(TIMEOUT_MINUTES, TimeUnit.MINUTES)) {
+                        LOGGER.warn("Plugin engine timed out after {} min; destroying", TIMEOUT_MINUTES);
+                        p.destroyForcibly();
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            watchdog.setDaemon(true);
+            watchdog.start();
 
             try (BufferedReader stdout = new BufferedReader(
                     new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
@@ -64,19 +80,20 @@ public class Plugin extends AbstractVerticle {
                 }
             }
 
-            boolean finished = process.waitFor(TIMEOUT_MINUTES, TimeUnit.MINUTES);
+            int exitCode = process.waitFor(); // returns promptly: normal exit or watchdog kill
+            watchdog.interrupt();
             stderrThread.join(1000);
-            if (!finished) {
-                LOGGER.warn("Plugin engine timed out; destroying");
-                process.destroyForcibly();
-            } else if (process.exitValue() != 0) {
-                LOGGER.warn("Plugin engine exited with code {}", process.exitValue());
+            if (exitCode != 0) {
+                LOGGER.warn("Plugin engine exited with code {}", exitCode);
             }
         } catch (Exception e) {
             LOGGER.error("Error running plugin engine: {}", e.getMessage());
         } finally {
+            if (watchdog != null) watchdog.interrupt();
             if (process != null && process.isAlive()) process.destroyForcibly();
-            if (envFile != null) try { Files.deleteIfExists(envFile); } catch (Exception ignore) {}
+            if (envFile != null) {
+                try { Files.deleteIfExists(envFile); } catch (Exception ignore) {}
+            }
             vertx.eventBus().send(EVENT_COMPLETION, envelope);
         }
     }
