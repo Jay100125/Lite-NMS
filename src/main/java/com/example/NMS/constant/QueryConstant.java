@@ -52,17 +52,21 @@ public class QueryConstant
         "    credential_profile_id = CASE WHEN discovery_result.result = 'COMPLETED' THEN discovery_result.credential_profile_id ELSE EXCLUDED.credential_profile_id END " +
         "RETURNING id";
 
+    // metrics.plugin_type is NOT NULL; on first insert derive it from the parent job so a metric-config
+    // edit for a not-yet-persisted metric row does not violate the constraint.
     public static final String UPSERT_METRICS =
-        "INSERT INTO metrics (provisioning_job_id, name, polling_interval, is_enabled) " +
-            "VALUES ($1, $2, COALESCE($3, 300), $4) " +
+        "INSERT INTO metrics (provisioning_job_id, name, plugin_type, polling_interval, is_enabled) " +
+            "VALUES ($1, $2, (SELECT plugin_type FROM provisioning_jobs WHERE id = $1), COALESCE($3, 300), $4) " +
             "ON CONFLICT (provisioning_job_id, name) " +
             "DO UPDATE SET polling_interval = COALESCE(EXCLUDED.polling_interval, metrics.polling_interval), " +
             "is_enabled = EXCLUDED.is_enabled " +
             "RETURNING metric_id as id";
 
+    // $4 is the engine's epoch-millis timestamp (a bigint); polled_at is `timestamp without time zone`,
+    // so convert in SQL rather than passing a raw Long the pg client cannot coerce to a temporal.
     public static final String INSERT_POLLED_DATA =
         "INSERT INTO polled_data (job_id, metric_type, data, polled_at) " +
-            "VALUES ($1, $2, $3::jsonb, $4) returning id";
+            "VALUES ($1, $2, $3::jsonb, to_timestamp($4 / 1000.0)) returning id";
 
     public static final String GET_ALL_PROVISIONING_JOBS =
         "SELECT pj.*, cp.credential_name, cp.system_type " +
@@ -180,6 +184,7 @@ public class QueryConstant
                     'provisioning_job_id', pj.provisioning_job_id,
                     'credential_profile_id', pj.credential_profile_id,
                     'port', pj.port,
+                    'protocol', pj.plugin_type,
                     'metric_id', m.metric_id,
                     'metric_name', m.name,
                     'cred_data', cp.cred_data
@@ -211,6 +216,7 @@ public class QueryConstant
     SELECT
         pj.ip,
         pj.port,
+        cp.system_type AS protocol,
         cp.cred_data,
         m.metric_id,
         m.name AS metric_name,

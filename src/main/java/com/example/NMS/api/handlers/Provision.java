@@ -321,14 +321,12 @@ public class Provision extends AbstractAPI
                 {
                     var row = updatedData.getJsonObject(i);
 
+                    // row carries ip/port/protocol/cred_data (encrypted string) from the fetch query;
+                    // copy it verbatim and only add the poll-scheduling fields the query cannot supply.
                     var cacheObject = new JsonObject(row.getMap())
                         .put(PROVISIONING_JOB_ID, id)
-                        .put(METRIC_ID, row.getLong(METRIC_ID))
-                        .put(METRIC_NAME, row.getString(METRIC_NAME))
-                        .put(CRED_DATA, row.getJsonObject(CRED_DATA, new JsonObject()))
                         .put(ORIGINAL_INTERVAL, row.getInteger(POLLING_INTERVAL))
-                        .put(REMAINING_TIME, row.getInteger(POLLING_INTERVAL))
-                        .put(IS_ENABLED, row.getBoolean(IS_ENABLED));
+                        .put(REMAINING_TIME, row.getInteger(POLLING_INTERVAL));
 
                     MetricCache.getInstance().update(cacheObject);
                 }
