@@ -119,9 +119,11 @@ public class QueryConstant
         SELECT
             dr.ip,
             dr.credential_profile_id,
-            dr.port
+            dr.port,
+            cp.system_type AS plugin_type
         FROM discovery_result dr
         JOIN input_ips i ON dr.ip = i.ip
+        JOIN credential_profile cp ON cp.id = dr.credential_profile_id
         WHERE dr.discovery_id = $1
         AND dr.result = 'COMPLETED'
     ),
@@ -137,14 +139,15 @@ public class QueryConstant
         WHERE dr.ip IS NULL OR dr.result != 'COMPLETED'
     ),
     inserted_provisioning_jobs AS (
-        INSERT INTO provisioning_jobs (credential_profile_id, ip, port)
+        INSERT INTO provisioning_jobs (credential_profile_id, plugin_type, ip, port)
         SELECT
             dv.credential_profile_id,
+            dv.plugin_type,
             dv.ip,
             dv.port
         FROM discovery_validation dv
-        ON CONFLICT (ip) DO NOTHING
-        RETURNING id AS provisioning_job_id, credential_profile_id, ip, port
+        ON CONFLICT (ip, port) DO NOTHING
+        RETURNING id AS provisioning_job_id, credential_profile_id, plugin_type, ip, port
     ),
     metric_names AS (
         SELECT name
@@ -158,10 +161,11 @@ public class QueryConstant
         ) AS metrics (name)
     ),
     inserted_metrics AS (
-        INSERT INTO metrics (provisioning_job_id, name, polling_interval, is_enabled)
+        INSERT INTO metrics (provisioning_job_id, name, plugin_type, polling_interval, is_enabled)
         SELECT
             pj.provisioning_job_id,
             mn.name,
+            pj.plugin_type,
             300,
             TRUE
         FROM inserted_provisioning_jobs pj
