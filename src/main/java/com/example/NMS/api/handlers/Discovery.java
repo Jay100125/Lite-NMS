@@ -1,6 +1,7 @@
 package com.example.NMS.api.handlers;
 
 import com.example.NMS.constant.QueryConstant;
+import com.example.NMS.util.CryptoUtil;
 import com.example.NMS.utility.APIUtils;
 import com.example.NMS.utility.Validator;
 import io.vertx.core.Future;
@@ -285,6 +286,9 @@ public class Discovery extends AbstractAPI
 
                     var profile = result.getJsonObject(0);
 
+                    // cred_data is encrypted at rest; decrypt into plaintext creds for the engine run.
+                    profile.put("credential", resolveCredentials(profile.getJsonArray("credential")));
+
                     var request = new JsonObject()
                         .put(ID, id)
                         .put("profile", profile);
@@ -307,6 +311,45 @@ public class Discovery extends AbstractAPI
 
             APIUtils.sendError(context, 500, "Internal server error");
         }
+    }
+
+    /**
+     * Decrypts each credential's {@code cred_data} (encrypted at rest, JSON of {@code user}/{@code password})
+     * into the plaintext {@code username}/{@code password}/{@code id} the discovery engine run expects.
+     * Rows without cred_data — e.g. a profile with no mapped credentials — are skipped.
+     *
+     * @param credentials the aggregated credential rows from {@code GET_BY_RUN_ID}.
+     * @return decrypted credential objects; empty (never null) when there are none.
+     */
+    public static JsonArray resolveCredentials(JsonArray credentials)
+    {
+        var resolved = new JsonArray();
+
+        if (credentials == null)
+        {
+            return resolved;
+        }
+
+        for (var entry : credentials)
+        {
+            var cred = (JsonObject) entry;
+
+            var cipher = cred.getString(CRED_DATA);
+
+            if (cipher == null || cipher.isBlank())
+            {
+                continue;
+            }
+
+            var plain = new JsonObject(CryptoUtil.decrypt(cipher));
+
+            resolved.add(new JsonObject()
+                .put(USERNAME, plain.getString(USER))
+                .put(PASSWORD, plain.getString(PASSWORD))
+                .put(ID, cred.getLong(ID)));
+        }
+
+        return resolved;
     }
 
     /**

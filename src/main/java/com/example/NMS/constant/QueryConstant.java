@@ -95,8 +95,7 @@ public class QueryConstant
                           JSON_BUILD_OBJECT(
                               'id', cp.id,
                               'protocol', cp.system_type,
-                              'username', cp.cred_data->>'user',
-                              'password', cp.cred_data->>'password'
+                              'cred_data', cp.cred_data
                           )
                       ) AS credential
                   FROM discovery_profiles dp
