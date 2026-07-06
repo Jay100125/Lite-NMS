@@ -1,0 +1,41 @@
+name: CI
+on:
+  push:
+    branches: [ main, v2 ]
+  pull_request:
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: nms_test
+          POSTGRES_PASSWORD: nms_test
+          POSTGRES_DB: nms_test
+        ports: [ "5432:5432" ]
+        options: >-
+          --health-cmd "pg_isready -U nms_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      NMS_TEST_DB_HOST: 127.0.0.1
+      NMS_TEST_DB_PORT: "5432"
+      NMS_TEST_DB_ADMIN: nms_test
+      NMS_TEST_DB_USER: nms_test
+      NMS_TEST_DB_PASSWORD: nms_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - name: Grant CREATEDB to test role
+        run: PGPASSWORD=nms_test psql -h 127.0.0.1 -U nms_test -d nms_test -c "ALTER ROLE nms_test CREATEDB;"
+      - run: ./mvnw -B verify
+  engine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { repository: Jay100125/NMSLITE_PLUGIN, path: NMSLITE_PLUGIN }
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.25' }
+      - run: go test ./...
+        working-directory: NMSLITE_PLUGIN
