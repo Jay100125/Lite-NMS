@@ -41,10 +41,15 @@ public class QueryConstant
 
     public static final String SET_DISCOVERY_STATUS = "UPDATE discovery_profiles SET status = $1 WHERE id = $2 RETURNING id";
 
+    // A discovery can try several credentials per IP → one result row per (ip, credential). Aggregate by IP
+    // with "COMPLETED wins": once an IP is COMPLETED (a credential worked), a later FAILED must not downgrade it.
     public static final String INSERT_DISCOVERY_RESULT = "INSERT INTO discovery_result (discovery_id, ip, port, result, msg, credential_profile_id) " +
         "VALUES ($1, $2, $3, $4, $5, $6) " +
         "ON CONFLICT (discovery_id, ip) DO UPDATE " +
-        "SET port = EXCLUDED.port, result = EXCLUDED.result, msg = EXCLUDED.msg, credential_profile_id = EXCLUDED.credential_profile_id " +
+        "SET port = EXCLUDED.port, " +
+        "    result = CASE WHEN discovery_result.result = 'COMPLETED' THEN 'COMPLETED' ELSE EXCLUDED.result END, " +
+        "    msg = CASE WHEN discovery_result.result = 'COMPLETED' THEN discovery_result.msg ELSE EXCLUDED.msg END, " +
+        "    credential_profile_id = CASE WHEN discovery_result.result = 'COMPLETED' THEN discovery_result.credential_profile_id ELSE EXCLUDED.credential_profile_id END " +
         "RETURNING id";
 
     public static final String UPSERT_METRICS =

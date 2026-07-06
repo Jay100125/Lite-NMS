@@ -1,6 +1,7 @@
 package com.example.NMS.discovery;
 
 import com.example.NMS.constant.QueryConstant;
+import com.example.NMS.plugin.PluginEnvelope;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
@@ -109,18 +110,6 @@ public class Discovery extends AbstractVerticle
     {
         var targets = new JsonArray();
 
-        var credentialProfiles = new JsonArray();
-
-        for (int j = 0; j < credentials.size(); j++)
-        {
-            var cred = credentials.getJsonObject(j);
-
-            credentialProfiles.add(new JsonObject()
-                .put(USERNAME, cred.getString(USERNAME))
-                .put(PASSWORD, cred.getString(PASSWORD))
-                .put(ID, cred.getLong(ID)));
-        }
-
         for (var i = 0; i < reachResults.size(); i++)
         {
             var obj = reachResults.getJsonObject(i);
@@ -129,23 +118,33 @@ public class Discovery extends AbstractVerticle
 
             var open = obj.getBoolean("port_open");
 
+            var ip = obj.getString(IP);
+
             if (up && open)
             {
-                var target = new JsonObject()
-                    .put(IP, obj.getString(IP))
-                    .put(PORT, port)
-                    .put(CREDENTIAL_PROFILES, credentialProfiles)
-                    .put(PLUGIN_TYPE, LINUX)
-                    .put(DISCOVERY_ID, discoveryId);
+                // One v2 target per (ip, credential): the engine tries a SINGLE credential per target,
+                // so a discovery with multiple candidate credentials fans out. The request_id carries the
+                // context (v2 result lines omit ip/discovery_id) so ResponseProcessor can store the result.
+                for (var j = 0; j < credentials.size(); j++)
+                {
+                    var cred = credentials.getJsonObject(j);
 
-                targets.add(target);
+                    var credential = new JsonObject()
+                        .put(USERNAME, cred.getString(USERNAME))
+                        .put(PASSWORD, cred.getString(PASSWORD));
+
+                    var requestId = DiscoveryRequestId.encode(discoveryId, ip, port, cred.getLong(ID));
+
+                    // plugin_type must be the engine's registry key (uppercase); Constant.LINUX is lowercase.
+                    targets.add(PluginEnvelope.target(requestId, 0L, "LINUX", ip, port, credential, new JsonArray()));
+                }
             }
             else
             {
                 var errorMsg = up ? "Port closed" : "Device unreachable";
 
                 var unreachableResult = new JsonObject()
-                    .put(IP, obj.getString(IP))
+                    .put(IP, ip)
                     .put(PORT, port)
                     .put(STATUS, FAILURE)
                     .put(RESULT, errorMsg)
@@ -157,14 +156,15 @@ public class Discovery extends AbstractVerticle
             }
         }
 
-        var pluginInput = new JsonObject()
-            .put(REQUEST_TYPE, DISCOVERY)
-            .put(DISCOVERY_ID, discoveryId)
-            .put(TARGETS, targets);
+        // v2 discovery envelope {version, event_type:"discovery", targets}. discovery_id is an extra
+        // field the engine ignores (lenient JSON) but the EVENT_COMPLETION handler uses to mark the
+        // profile COMPLETED once the run finishes.
+        var envelope = PluginEnvelope.build(EVENT_DISCOVERY, targets)
+            .put(DISCOVERY_ID, discoveryId);
 
-        LOGGER.info("Dispatching plugin input for discovery ID {} with {} target(s)", discoveryId, targets.size());
+        LOGGER.info("Dispatching discovery envelope for ID {} with {} target(s)", discoveryId, targets.size());
 
-        vertx.eventBus().send(PLUGIN_EXECUTE, pluginInput);
+        vertx.eventBus().send(PLUGIN_EXECUTE, envelope);
 
     }
 }

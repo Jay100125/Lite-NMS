@@ -1,6 +1,7 @@
 package com.example.NMS.plugin;
 
 import com.example.NMS.constant.QueryConstant;
+import com.example.NMS.discovery.DiscoveryRequestId;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.core.json.JsonArray;
@@ -66,9 +67,8 @@ public class ResponseProcessor extends AbstractVerticle
             {
                 var data = message.body();
 
-                var requestType = data.getString(REQUEST_TYPE);
-
-                if (DISCOVERY.equals(requestType))
+                // The envelope carries event_type ("discovery"|"poll"); only discovery marks a profile COMPLETED.
+                if (EVENT_DISCOVERY.equals(data.getString(EVENT_TYPE)))
                 {
                     var discoveryId = data.getInteger(DISCOVERY_ID);
 
@@ -183,19 +183,46 @@ public class ResponseProcessor extends AbstractVerticle
     {
         var status = data.getString(STATUS);
 
+        Integer discoveryId;
+        String ip;
+        Integer port;
+        Object credentialId;
+        String msg;
+
+        // v2 engine result lines omit ip/discovery_id; recover them from the echoed request_id.
+        var context = DiscoveryRequestId.decode(data.getString(REQUEST_ID));
+
+        if (context != null)
+        {
+            discoveryId = context.getInteger("discovery_id");
+            ip = context.getString("ip");
+            port = context.getInteger("port");
+            credentialId = context.getInteger("credential_id");
+            msg = SUCCESS.equals(status) ? "Discovery succeeded" : data.getString(ERROR, "Discovery failed");
+        }
+        else
+        {
+            // Direct result: Discovery short-circuits an unreachable IP straight to storage (no engine run).
+            discoveryId = data.getInteger(DISCOVERY_ID);
+            ip = data.getString(IP);
+            port = data.getInteger(PORT);
+            credentialId = data.getValue(CREDENTIAL_ID);
+            msg = data.getString(RESULT);
+        }
+
         // Canonical discovery_result vocabulary is COMPLETED|FAILED (Task 2 schema);
         // the engine's own status field remains success|failed.
         var discoveryResult = SUCCESS.equals(status) ? "COMPLETED" : "FAILED";
 
         var queryParams = new JsonArray()
-            .add(data.getInteger(DISCOVERY_ID))
-            .add(data.getString(IP))
-            .add(data.getInteger(PORT))
+            .add(discoveryId)
+            .add(ip)
+            .add(port)
             .add(discoveryResult)
-            .add(data.getString(RESULT))
-            .add(data.getValue(CREDENTIAL_ID));
+            .add(msg)
+            .add(credentialId);
 
-        LOGGER.info("Storing discovery results: {}", queryParams.encodePrettily());
+        LOGGER.info("Storing discovery result: discovery_id={}, ip={}, result={}", discoveryId, ip, discoveryResult);
 
         var query = new JsonObject()
             .put(QUERY, QueryConstant.INSERT_DISCOVERY_RESULT)
