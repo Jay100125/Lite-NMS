@@ -190,7 +190,11 @@ public class Database extends AbstractVerticle
                 // Split schema into individual DDL statements
                 var ddlStatements = schema.split(";");
 
-                var executionFutures = new ArrayList<Future>();
+                // Execute DDL statements SEQUENTIALLY (FK-safe): a table with a foreign key
+                // must be created after its referenced table, and `metrics` needs the
+                // `metric_name` type to exist first. Running these concurrently
+                // (CompositeFuture.all) races the dependencies and fails intermittently.
+                Future<Void> chain = Future.succeededFuture();
 
                 for (var statement : ddlStatements)
                 {
@@ -198,30 +202,18 @@ public class Database extends AbstractVerticle
 
                     if (!trimmedStatement.isEmpty())
                     {
-                        // Execute each DDL statement
-                        var statementPromise = Promise.<Void>promise();
+                        chain = chain.compose(ignored ->
+                        {
+                            LOGGER.debug("Executing DDL: {}", trimmedStatement);
 
-                        LOGGER.debug("Executing DDL: {}", trimmedStatement);
-
-                        client.query(trimmedStatement).execute()
-                            .onSuccess(result ->
-                            {
-                                LOGGER.debug("Successfully executed DDL: {}", trimmedStatement);
-
-                                statementPromise.complete();
-                            })
-                            .onFailure(error ->
-                            {
-                                LOGGER.error("Failed to execute DDL: {} - Error: {}", trimmedStatement, error.getMessage());
-
-                                statementPromise.fail(error);
-                            });
-                        executionFutures.add(statementPromise.future());
+                            return client.query(trimmedStatement).execute()
+                                .onFailure(error -> LOGGER.error("Failed to execute DDL: {} - Error: {}", trimmedStatement, error.getMessage()))
+                                .mapEmpty();
+                        });
                     }
                 }
 
-                // Wait for all DDL statements to complete
-                CompositeFuture.all((executionFutures))
+                chain
                     .onSuccess(result ->
                     {
                         LOGGER.info("All DDL statements processed.");
