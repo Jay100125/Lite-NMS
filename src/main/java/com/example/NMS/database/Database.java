@@ -6,6 +6,7 @@ import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
+import io.vertx.pgclient.PgException;
 import io.vertx.sqlclient.Row;
 import io.vertx.sqlclient.RowSet;
 import io.vertx.sqlclient.SqlClient;
@@ -162,6 +163,20 @@ public class Database extends AbstractVerticle
      *
      * @return A Future that completes when schema initialization is done or fails.
      */
+    /** True when a DDL statement failed only because the object already exists (idempotent re-run). */
+    private static boolean isAlreadyExists(Throwable error)
+    {
+        if (error instanceof PgException pg)
+        {
+            var code = pg.getSqlState();
+
+            // 42710 duplicate_object (e.g. type/enum), 42P07 duplicate_table
+            return "42710".equals(code) || "42P07".equals(code);
+        }
+
+        return false;
+    }
+
     private Future<Void> initializeSchema()
     {
         var promise = Promise.<Void>promise();
@@ -207,8 +222,23 @@ public class Database extends AbstractVerticle
                             LOGGER.debug("Executing DDL: {}", trimmedStatement);
 
                             return client.query(trimmedStatement).execute()
-                                .onFailure(error -> LOGGER.error("Failed to execute DDL: {} - Error: {}", trimmedStatement, error.getMessage()))
-                                .mapEmpty();
+                                .<Void>mapEmpty()
+                                .recover(error ->
+                                {
+                                    // Idempotent boot: CREATE TYPE has no IF NOT EXISTS, so a
+                                    // restart against an already-migrated DB would otherwise fail.
+                                    // Tolerate "already exists" (duplicate_object / duplicate_table).
+                                    if (isAlreadyExists(error))
+                                    {
+                                        LOGGER.debug("Skipping already-applied DDL: {}", trimmedStatement);
+
+                                        return Future.succeededFuture();
+                                    }
+
+                                    LOGGER.error("Failed to execute DDL: {} - Error: {}", trimmedStatement, error.getMessage());
+
+                                    return Future.failedFuture(error);
+                                });
                         });
                     }
                 }
