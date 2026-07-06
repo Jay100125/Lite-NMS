@@ -1,5 +1,7 @@
 package com.example.NMS.polling;
 
+import com.example.NMS.plugin.PluginEnvelope;
+import com.example.NMS.util.CryptoUtil;
 import com.example.NMS.utility.Utility;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
@@ -9,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static com.example.NMS.constant.Constant.*;
@@ -161,9 +164,9 @@ public class Polling extends AbstractVerticle
                 {
                     var reachResults = res.result();
 
-                    var targets = new JsonArray();
+                    // Collect the cache jobs whose device is reachable, shaped for the v2 envelope.
+                    var dueJobs = new JsonArray();
 
-                    // Process each job individually
                     for (var job : jobs)
                     {
                         var ip = job.getString(IP);
@@ -177,31 +180,25 @@ public class Polling extends AbstractVerticle
 
                         if (reachResult != null && reachResult.getBoolean("reachable") && reachResult.getBoolean("port_open"))
                         {
-                            targets.add(new JsonObject()
-                                .put(IP_ADDRESS, ip)
+                            dueJobs.add(new JsonObject()
+                                .put(JOB_ID, job.getLong(PROVISIONING_JOB_ID))
+                                .put(PLUGIN_TYPE, job.getString(PROTOCOL).toUpperCase())
+                                .put(IP, ip)
                                 .put(PORT, job.getInteger(PORT))
-                                .put(USER, job.getJsonObject(CRED_DATA).getString(USER))
-                                .put(PASSWORD, job.getJsonObject(CRED_DATA).getString(PASSWORD))
-                                .put(PROVISIONING_JOB_ID, job.getLong(PROVISIONING_JOB_ID))
-                                .put(METRIC_NAME, job.getString(METRIC_NAME))
-                                .put(PROTOCOL, job.getString(PROTOCOL))
-                                .put(PLUGIN_TYPE, LINUX + job.getString(METRIC_NAME).toLowerCase()));
+                                .put(CRED_DATA, job.getString(CRED_DATA))
+                                .put("metrics", new JsonArray().add(job.getString(METRIC_NAME))));
                         }
                     }
 
-                    if (targets.isEmpty())
+                    if (dueJobs.isEmpty())
                     {
                         LOGGER.info("No reachable targets for polling");
                         return;
                     }
 
-                    var pluginInput = new JsonObject()
-                        .put(REQUEST_TYPE, POLLING)
-                        .put(TARGETS, targets);
+                    vertx.eventBus().send(PLUGIN_EXECUTE, buildEnvelope(dueJobs));
 
-                    vertx.eventBus().send(PLUGIN_EXECUTE, pluginInput);
-
-                    LOGGER.info("Sent polling plugin input with {} target(s)", targets.size());
+                    LOGGER.info("Sent polling plugin input with {} target(s)", dueJobs.size());
                 }
                 else
                 {
@@ -213,6 +210,38 @@ public class Polling extends AbstractVerticle
         {
             LOGGER.error("Polling failed: {}", exception.getMessage());
         }
+    }
+
+    /**
+     * Builds the v2 "poll" engine envelope (spec §4) from a list of due jobs.
+     * Each job carries an encrypted {@code cred_data} string that is decrypted here
+     * so credentials never live in plaintext in the cache; every job becomes exactly
+     * one target with its metrics preserved.
+     *
+     * @param dueJobs jobs shaped as {@code {job_id, plugin_type, ip, port, cred_data, metrics}}.
+     * @return the {@code {version, event_type:"poll", targets:[...]}} envelope.
+     */
+    public static JsonObject buildEnvelope(JsonArray dueJobs)
+    {
+        var targets = new JsonArray();
+
+        for (var entry : dueJobs)
+        {
+            var job = (JsonObject) entry;
+
+            var credential = new JsonObject(CryptoUtil.decrypt(job.getString(CRED_DATA)));
+
+            targets.add(PluginEnvelope.target(
+                UUID.randomUUID().toString(),
+                job.getLong(JOB_ID),
+                job.getString(PLUGIN_TYPE),
+                job.getString(IP),
+                job.getInteger(PORT),
+                credential,
+                job.getJsonArray("metrics")));
+        }
+
+        return PluginEnvelope.build(EVENT_POLL, targets);
     }
 
 }

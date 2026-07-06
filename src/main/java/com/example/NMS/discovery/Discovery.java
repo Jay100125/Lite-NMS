@@ -68,6 +68,28 @@ public class Discovery extends AbstractVerticle
 
                     handleConnection(reachResult, credentials, port, id);
                 }
+                else
+                {
+                    LOGGER.error("Discovery {} failed during resolve/reachability: {}", id, asyncResult.cause().getMessage());
+
+                    // Record a FAILED discovery result and mark the profile FAILED so it never hangs in RUNNING.
+                    var failedResult = new JsonObject()
+                        .put(IP, ipInput)
+                        .put(PORT, port)
+                        .put(STATUS, FAILURE)
+                        .put(RESULT, asyncResult.cause().getMessage())
+                        .put(DISCOVERY_ID, id)
+                        .put(CREDENTIAL_ID, null)
+                        .put(EVENT_TYPE, EVENT_DISCOVERY);
+
+                    vertx.eventBus().send(STORAGE_RESULTS, failedResult);
+
+                    var statusQuery = new JsonObject()
+                        .put(QUERY, QueryConstant.UPDATE_DISCOVERY_PROFILE_STATUS)
+                        .put(PARAMS, new JsonArray().add(DISCOVERY_STATUS_FAILED).add(id));
+
+                    vertx.eventBus().send(DB_EXECUTE_QUERY, statusQuery);
+                }
 
             });
 
