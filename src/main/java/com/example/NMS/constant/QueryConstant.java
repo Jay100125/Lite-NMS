@@ -41,6 +41,16 @@ public class QueryConstant
 
     public static final String SET_DISCOVERY_STATUS = "UPDATE discovery_profiles SET status = $1 WHERE id = $2 RETURNING id";
 
+    // $1 = jsonb array of credential ids, $2 = the discovery profile's plugin_type.
+    // > 0 means at least one selected credential has a different system_type.
+    // $1::text::jsonb (not a bare ::jsonb cast): the pg client infers a bare-cast parameter's wire
+    // type as jsonb and binds our JSON-encoded Java String as a quoted jsonb scalar, which blows up
+    // jsonb_array_elements_text with "cannot extract elements from a scalar". Routing through text
+    // first keeps the parameter typed as text so the array literal survives the cast.
+    public static final String COUNT_MISMATCHED_CREDENTIALS =
+        "SELECT COUNT(*)::int AS mismatched FROM credential_profile " +
+            "WHERE id IN (SELECT jsonb_array_elements_text($1::text::jsonb)::int) AND system_type <> $2";
+
     // A discovery can try several credentials per IP → one result row per (ip, credential). Aggregate by IP
     // with "COMPLETED wins": once an IP is COMPLETED (a credential worked), a later FAILED must not downgrade it.
     public static final String INSERT_DISCOVERY_RESULT = "INSERT INTO discovery_result (discovery_id, ip, port, result, msg, credential_profile_id) " +
