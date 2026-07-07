@@ -92,7 +92,7 @@ public class Provision extends AbstractAPI
 
             var query = new JsonObject()
                 .put(QUERY, QueryConstant.INSERT_PROVISIONING_AND_METRICS)
-                .put(PARAMS, new JsonArray().add(discoveryId).add(selectedIps));
+                .put(PARAMS, new JsonArray().add(discoveryId).add(selectedIps.encode()));
 
             executeQuery(query).onComplete(res ->
             {
