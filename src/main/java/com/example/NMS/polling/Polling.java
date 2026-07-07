@@ -152,9 +152,10 @@ public class Polling extends AbstractVerticle
             vertx.<Set<String>>executeBlocking(promise -> {
                 try
                 {
-                    var alive = Utility.pingCheck(ips);
-
-                    promise.complete(Utility.portCheck(alive, 22));
+                    // Ping-only gate: poll jobs span SSH/SNMP/WinRM, so a TCP :22 check
+                    // would wrongly skip non-SSH devices; per-protocol reachability is the
+                    // engine's job.
+                    promise.complete(Utility.pingCheck(ips));
                 }
                 catch (Exception e)
                 {
