@@ -11,8 +11,9 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * The discovery run path reads credentials whose {@code cred_data} is now encrypted at rest.
- * {@code Discovery.resolveCredentials} must decrypt each row into the plaintext
- * username/password the discovery engine expects, and skip rows without cred_data.
+ * {@code Discovery.resolveCredentials} must decrypt each row into its stored plaintext shape
+ * (passed through untouched — {@code PluginEnvelope.credential} remaps per plugin type later)
+ * plus {@code id}, and skip rows without cred_data.
  */
 class DiscoveryCredentialsTest
 {
@@ -20,21 +21,15 @@ class DiscoveryCredentialsTest
     void decryptsCredData()
     {
         // stored plaintext uses keys "user"/"password" (see Credential.create)
-        var cipher = CryptoUtil.encrypt(
-            new JsonObject().put(USER, "admin").put(PASSWORD, "s3cr3t").encode());
+        var cipher = CryptoUtil.encrypt(new JsonObject().put(USER, "root").put(PASSWORD, "pw").encode());
 
-        var rows = new JsonArray().add(new JsonObject()
-            .put(ID, 5L)
-            .put(PROTOCOL, "LINUX")
-            .put(CRED_DATA, cipher));
-
-        var resolved = Discovery.resolveCredentials(rows);
+        var resolved = Discovery.resolveCredentials(new JsonArray()
+            .add(new JsonObject().put(CRED_DATA, cipher).put(ID, 5L)));
 
         assertEquals(1, resolved.size());
-        var cred = resolved.getJsonObject(0);
-        assertEquals("admin", cred.getString(USERNAME));
-        assertEquals("s3cr3t", cred.getString(PASSWORD));
-        assertEquals(5L, (long) cred.getLong(ID));
+        assertEquals("root", resolved.getJsonObject(0).getString(USER));
+        assertEquals("pw", resolved.getJsonObject(0).getString(PASSWORD));
+        assertEquals(5L, (long) resolved.getJsonObject(0).getLong(ID));
     }
 
     @Test

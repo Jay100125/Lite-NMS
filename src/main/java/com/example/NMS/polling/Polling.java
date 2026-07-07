@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -148,12 +149,12 @@ public class Polling extends AbstractVerticle
                 .collect(Collectors.toList());
 
             // Use executeBlocking to avoid blocking the event loop
-            vertx.<JsonArray>executeBlocking(promise -> {
+            vertx.<Set<String>>executeBlocking(promise -> {
                 try
                 {
-                    var reachResults = Utility.checkReachability(ips, 22);
+                    var alive = Utility.pingCheck(ips);
 
-                    promise.complete(reachResults);
+                    promise.complete(Utility.portCheck(alive, 22));
                 }
                 catch (Exception e)
                 {
@@ -162,7 +163,7 @@ public class Polling extends AbstractVerticle
             }, res -> {
                 if (res.succeeded())
                 {
-                    var reachResults = res.result();
+                    var reachableIps = res.result();
 
                     // Collect the cache jobs whose device is reachable, shaped for the v2 envelope.
                     var dueJobs = new JsonArray();
@@ -171,14 +172,7 @@ public class Polling extends AbstractVerticle
                     {
                         var ip = job.getString(IP);
 
-                        // Find reachability result for this IP
-                        var reachResult = reachResults.stream()
-                            .map(obj -> (JsonObject) obj)
-                            .filter(resObj -> resObj.getString(IP).equals(ip))
-                            .findFirst()
-                            .orElse(null);
-
-                        if (reachResult != null && reachResult.getBoolean("reachable") && reachResult.getBoolean("port_open"))
+                        if (reachableIps.contains(ip))
                         {
                             dueJobs.add(new JsonObject()
                                 .put(JOB_ID, job.getLong(PROVISIONING_JOB_ID))

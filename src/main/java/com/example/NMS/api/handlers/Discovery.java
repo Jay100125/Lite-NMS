@@ -368,9 +368,11 @@ public class Discovery extends AbstractAPI
     }
 
     /**
-     * Decrypts each credential's {@code cred_data} (encrypted at rest, JSON of {@code user}/{@code password})
-     * into the plaintext {@code username}/{@code password}/{@code id} the discovery engine run expects.
-     * Rows without cred_data — e.g. a profile with no mapped credentials — are skipped.
+     * Decrypts each credential's {@code cred_data} (encrypted at rest) into its stored plaintext
+     * shape plus {@code id}. The stored shape is passed through untouched — {@code {user,password}}
+     * for SSH/WinRM or {@code {version,community}} for SNMP — and {@code PluginEnvelope.credential}
+     * shapes it per plugin type at envelope-build time. Rows without cred_data — e.g. a profile with
+     * no mapped credentials — are skipped.
      *
      * @param credentials the aggregated credential rows from {@code GET_BY_RUN_ID}.
      * @return decrypted credential objects; empty (never null) when there are none.
@@ -395,12 +397,10 @@ public class Discovery extends AbstractAPI
                 continue;
             }
 
-            var plain = new JsonObject(CryptoUtil.decrypt(cipher));
-
-            resolved.add(new JsonObject()
-                .put(USERNAME, plain.getString(USER))
-                .put(PASSWORD, plain.getString(PASSWORD))
-                .put(ID, cred.getLong(ID)));
+            // Decrypted stored shape passes through untouched ({user,password} or
+            // {version,community}); PluginEnvelope.credential shapes it per plugin type
+            // at envelope-build time.
+            resolved.add(new JsonObject(CryptoUtil.decrypt(cipher)).put(ID, cred.getLong(ID)));
         }
 
         return resolved;

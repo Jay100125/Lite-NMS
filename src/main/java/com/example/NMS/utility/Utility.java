@@ -1,7 +1,5 @@
 package com.example.NMS.utility;
 
-import io.vertx.core.json.JsonArray;
-import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -10,8 +8,10 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Utility class for network-related operations in Lite NMS.
@@ -164,69 +164,41 @@ public class Utility
 
 
   /**
-   * Checks the reachability of a list of IP addresses and verifies if a specified port is open.
-   * Uses `fping` to check IP reachability and `nc` to check port availability.
-   *
-   * @param ipAddresses The list of IP addresses to check.
-   * @param port        The port to verify for each IP address.
-   * @return A JSON array of results, each containing the IP, reachability status, and port status.
-   * @throws Exception If the reachability check fails due to invalid input or system errors.
+   * Bulk liveness check via {@code fping -a -q -c 1 -t 1000}. Returns the subset
+   * of {@code ipAddresses} that answered. (Extracted from the old checkReachability;
+   * fping output parsing is unchanged.)
    */
-    public static JsonArray checkReachability(List<String> ipAddresses, int port) throws Exception
+    public static Set<String> pingCheck(List<String> ipAddresses)
     {
-        var results = new JsonArray();
-
         var aliveIps = new HashSet<String>();
 
-        // Run bulk fping with -a to get alive hosts
         try
         {
             var command = new ArrayList<String>();
 
             command.add("fping");
-            command.add("-a"); // Show alive hosts
-            command.add("-q"); // Quiet mode
-            command.add("-c"); // Count
-            command.add("1");  // 1 attempt
-            command.add("-t"); // Timeout
-            command.add("1000"); // 1000ms
-            command.addAll(ipAddresses); // Add all IPs
+            command.add("-a");
+            command.add("-q");
+            command.add("-c");
+            command.add("1");
+            command.add("-t");
+            command.add("1000");
+            command.addAll(ipAddresses);
 
-            var processBuilder = new ProcessBuilder(command);
+            var process = new ProcessBuilder(command).start();
 
-            var process = processBuilder.start();
+            LOGGER.info("fping command: {}", String.join(" ", command));
 
-            LOGGER.info("Ip {} fping command: {}", ipAddresses, String.join(" ", command));
-
-            // Read alive IPs from stdout (fping -a outputs alive hosts directly)
             var reader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
 
             String line;
 
             while ((line = reader.readLine()) != null)
             {
-              // Example line: "192.168.1.1 : xmt/rcv/%loss = 3/3/0%, min/avg/max = 1.01/1.23/1.45"
                 if (!line.contains("100%"))
                 {
                     aliveIps.add(line.split(":")[0].trim());
                 }
-            }
-
-            LOGGER.info("fping alive IPs: {}", aliveIps);
-
-            // Log stderr for debugging
-            var stderrReader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
-
-            var stderr = new StringBuilder();
-
-            while ((line = stderrReader.readLine()) != null)
-            {
-                stderr.append(line).append("\n");
-            }
-
-            if (!stderr.isEmpty())
-            {
-                LOGGER.debug("fping stderr: {}", stderr);
             }
 
             var exitCode = process.waitFor();
@@ -241,42 +213,25 @@ public class Utility
             LOGGER.error("Error running fping: {}", exception.getMessage());
         }
 
-        // Check port for each IP
+        LOGGER.info("fping alive IPs: {}", aliveIps);
+
+        return aliveIps;
+    }
+
+  /** TCP-connect check (1s timeout) for each candidate; returns the IPs with the port open. */
+    public static Set<String> portCheck(Collection<String> ipAddresses, int port)
+    {
+        var open = new HashSet<String>();
+
         for (var ip : ipAddresses)
         {
-            var isReachable = aliveIps.contains(ip);
-
-            var isPortOpen = false;
-
-            if (isReachable)
+            if (isPortOpen(ip, port))
             {
-                try
-                {
-                    // Use nc to check port
-                    isPortOpen = isPortOpen(ip, port);
-
-                    LOGGER.debug("Port check for IP {} on port {}: {}", ip, port, isPortOpen ? "open" : "closed");
-                }
-                catch (Exception exception)
-                {
-                    LOGGER.error("Error checking port {} for IP {}: {}", port, ip, exception.getMessage());
-
-                    isPortOpen = false;
-                }
+                open.add(ip);
             }
-            else
-            {
-                LOGGER.debug("IP {} is not reachable, skipping port check", ip);
-            }
-            results.add(new JsonObject()
-              .put("ip", ip)
-              .put("reachable", isReachable)
-              .put("port_open", isPortOpen));
         }
 
-        LOGGER.info("Reachability results: {}", results.encode());
-
-        return results;
+        return open;
     }
 
     private static boolean isPortOpen(String ip, int port)
