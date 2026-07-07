@@ -2,6 +2,7 @@ package com.example.NMS.plugin;
 
 import com.example.NMS.constant.QueryConstant;
 import com.example.NMS.discovery.DiscoveryRequestId;
+import com.example.NMS.events.DiscoveryEvents;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.core.json.JsonArray;
@@ -77,6 +78,8 @@ public class ResponseProcessor extends AbstractVerticle
                         .put(PARAMS, new JsonArray().add(DISCOVERY_STATUS_COMPLETED).add(discoveryId));
 
                     vertx.eventBus().send(DB_EXECUTE_QUERY, query);
+
+                    DiscoveryEvents.state(vertx.eventBus(), discoveryId, DISCOVERY_STATUS_COMPLETED, null);
                 }
 
             });
@@ -199,6 +202,11 @@ public class ResponseProcessor extends AbstractVerticle
             port = context.getInteger("port");
             credentialId = context.getInteger("credential_id");
             msg = SUCCESS.equals(status) ? "Discovery succeeded" : data.getString(ERROR, "Discovery failed");
+
+            // Live progress for the UI: only engine results publish here; short-circuited
+            // ping/port failures were already published by the Discovery verticle.
+            DiscoveryEvents.progress(vertx.eventBus(), discoveryId, ip, "PLUGIN", 100.0,
+                SUCCESS.equals(status) ? "COMPLETED" : "FAILED", msg);
         }
         else
         {
