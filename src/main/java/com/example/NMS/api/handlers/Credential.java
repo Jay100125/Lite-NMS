@@ -23,6 +23,8 @@ public class Credential extends AbstractAPI
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(Credential.class);
 
+    public static final java.util.Set<String> VALID_PLUGIN_TYPES = java.util.Set.of(PLUGIN_LINUX, PLUGIN_SNMP, PLUGIN_WINRM);
+
     public Credential()
     {
         super(LOGGER, "Credential"); // Pass logger and names to AbstractAPI
@@ -52,6 +54,46 @@ public class Credential extends AbstractAPI
         );
     }
 
+    /**
+     * Validates cred_data against the credential's system_type contract:
+     * LINUX/WINRM need non-empty user+password, SNMP needs a non-empty community.
+     *
+     * @return an error message, or null when the payload is valid.
+     */
+    public static String credDataError(String systemType, JsonObject credData)
+    {
+        if (credData == null)
+        {
+            return "cred_data is required";
+        }
+
+        if (PLUGIN_SNMP.equals(systemType))
+        {
+            var community = credData.getString(COMMUNITY, "");
+
+            return community.isEmpty() ? "cred_data must contain community for SNMP" : null;
+        }
+
+        var user = credData.getString(USER, "");
+
+        var password = credData.getString(PASSWORD, "");
+
+        return (user.isEmpty() || password.isEmpty()) ? "cred_data must contain user and password" : null;
+    }
+
+    /** Shapes cred_data for storage: SNMP is pinned to {version:"2c", community}; others pass through. */
+    public static JsonObject normalizeCredData(String systemType, JsonObject credData)
+    {
+        if (PLUGIN_SNMP.equals(systemType))
+        {
+            return new JsonObject()
+                .put(SNMP_VERSION, SNMP_V2C)
+                .put(COMMUNITY, credData.getString(COMMUNITY));
+        }
+
+        return credData;
+    }
+
   /**
    * Handles the POST request to create a new credential profile.
    * Validates the request body for required fields (credential name, system type, and credential data),
@@ -79,11 +121,20 @@ public class Credential extends AbstractAPI
 
             var credentialData = body.getJsonObject(CRED_DATA);
 
-            if (!credentialData.containsKey(USER) || !credentialData.containsKey(PASSWORD) || credentialData.getString(USER).isEmpty() || credentialData.getString(PASSWORD).isEmpty())
+            if (!VALID_PLUGIN_TYPES.contains(protocol))
             {
-                LOGGER.warn("Create credential failed: Invalid credential name, system type, or credential data");
+                APIUtils.sendError(context, 400, "protocol must be one of LINUX, SNMP, WINRM");
 
-                APIUtils.sendError(context, 400, "missing field or invalid data");
+                return;
+            }
+
+            var credError = credDataError(protocol, credentialData);
+
+            if (credError != null)
+            {
+                LOGGER.warn("Create credential failed: {}", credError);
+
+                APIUtils.sendError(context, 400, credError);
 
                 return;
             }
@@ -91,7 +142,7 @@ public class Credential extends AbstractAPI
             // Prepare database query to insert the new credential (cred_data encrypted at rest)
             var insertQuery = new JsonObject()
               .put(QUERY, INSERT_CREDENTIAL)
-              .put(PARAMS, new JsonArray().add(credentialName).add(protocol).add(CryptoUtil.encrypt(credentialData.encode())));
+              .put(PARAMS, new JsonArray().add(credentialName).add(protocol).add(CryptoUtil.encrypt(normalizeCredData(protocol, credentialData).encode())));
 
             executeQuery(insertQuery)
                 .onComplete(queryResult ->
@@ -172,9 +223,28 @@ public class Credential extends AbstractAPI
             // Validate credential_data if provided
             var credentialData = body.getJsonObject(CRED_DATA);
 
-            if (credentialData != null && (!credentialData.containsKey(USER) || !credentialData.containsKey(PASSWORD)))
+            if (credentialData != null)
             {
-                APIUtils.sendError(context, 400, "cred_data must contain user and password");
+                if (protocol == null)
+                {
+                    APIUtils.sendError(context, 400, "protocol is required when updating cred_data");
+
+                    return;
+                }
+
+                var credError = credDataError(protocol, credentialData);
+
+                if (credError != null)
+                {
+                    APIUtils.sendError(context, 400, credError);
+
+                    return;
+                }
+            }
+
+            if (protocol != null && !VALID_PLUGIN_TYPES.contains(protocol))
+            {
+                APIUtils.sendError(context, 400, "protocol must be one of LINUX, SNMP, WINRM");
 
                 return;
             }
@@ -182,7 +252,7 @@ public class Credential extends AbstractAPI
             var params = new JsonArray()
               .add(body.getString(CREDENTIAL_NAME)) // Can be null
               .add(protocol) // Can be null
-              .add(credentialData != null ? CryptoUtil.encrypt(credentialData.encode()) : null) // Encrypt at rest when present; null keeps existing (COALESCE)
+              .add(credentialData != null ? CryptoUtil.encrypt(normalizeCredData(protocol, credentialData).encode()) : null) // Encrypt at rest when present; null keeps existing (COALESCE)
               .add(id);
 
             var query = new JsonObject()
