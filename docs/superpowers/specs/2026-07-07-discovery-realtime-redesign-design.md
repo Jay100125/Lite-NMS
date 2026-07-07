@@ -9,7 +9,7 @@
 Replace the drawer-based, poll-only discovery UX with a full-screen flow that shows
 live per-IP discovery progress over a SockJS event-bus bridge — ping check (33%),
 port check (66%), plugin response (100% success/fail) — accepting IP / IP-range /
-CIDR targets. Give each provisioned device a drilldown with metric charts plus a
+CIDR targets, for all three device types (LINUX over SSH, SNMP v2c, WINRM). Give each provisioned device a drilldown with metric charts plus a
 raw polled-data grid. Remove the fleet-average availability dashboard (keep the
 per-device availability panel and the whole backend availability feature).
 
@@ -26,8 +26,37 @@ per-device availability panel and the whole backend availability feature).
 5. **Drilldown (`/provisioning/:id`):** metric config, Highcharts time-series,
    **new raw polled-data grid**, availability panel — stacked, no toggle.
 6. **Transport:** Vert.x SockJS event-bus bridge (option A), reference-faithful.
+7. **Multi-protocol:** discovery and provisioning work for all three plugin types
+   — LINUX (SSH), SNMP (v2c), WINRM — not just LINUX. SNMPv3 is out of scope
+   (the engine's credential struct has no v3 auth params).
 
 ## Backend (Lite-NMS)
+
+### Multi-protocol discovery (LINUX / SNMP / WINRM)
+
+The Go engine already implements `Discover` and `Collect` for all three plugin
+types; the backend hardcodes `plugin_type:"LINUX"` today. Changes:
+
+- **Schema:** `discovery_profiles` gains
+  `plugin_type VARCHAR(20) NOT NULL DEFAULT 'LINUX' CHECK (plugin_type IN ('LINUX','SNMP','WINRM'))`
+  via `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` in `schema.sql` (restart-safe,
+  existing rows default to LINUX).
+- **Discovery create/update:** accepts `plugin_type`; validates that every
+  selected credential profile's `system_type` matches it.
+- **Credential validation** (`Credential.java`): per `system_type` —
+  LINUX/WINRM require `{user, password}`; SNMP requires `{community}`
+  (version fixed to `2c`; stored in `cred_data` as `{version:"2c", community}`).
+- **Envelope:** discovery and polling targets carry the profile/job's
+  `plugin_type`. Credential remap per type: LINUX/WINRM → `{username, password}`;
+  SNMP → `{version, community}` passed through as stored.
+- **Port-check stage by protocol:** SNMP is UDP — a TCP connect on 161 is
+  meaningless, so SNMP skips the port check (mirrors the reference, where
+  network devices go ping → 50% → plugin). WinRM checks TCP (default 5985).
+- **Provision-from-discovery:** `provisioning_jobs.plugin_type` comes from the
+  discovery profile (no longer hardcoded). Default metric rows per type follow
+  the engine's supported sets — LINUX: CPU, MEMORY, DISK, NETWORK, UPTIME,
+  PROCESS; WINRM: CPU, MEMORY, DISK; SNMP: UPTIME.
+- Default ports by type (UI convenience, backend doesn't enforce): 22 / 161 / 5985.
 
 ### SockJS bridge
 
@@ -55,9 +84,9 @@ All events publish to `nms.discovery.<discoveryId>`, discriminated by `type`:
 |---|---|
 | Run starts (status → RUNNING) | `{type:"state", status:"RUNNING"}` |
 | Targets expanded | `{type:"targets", total:<n>, ips:[...]}` |
-| fping done, per IP alive | `{type:"progress", ip, stage:"PING", progress:33.33, status:"ok"}` |
+| fping done, per IP alive | `{type:"progress", ip, stage:"PING", progress:33.33, status:"ok"}` (SNMP: `progress:50` — no port stage) |
 | fping done, per IP dead | `{type:"progress", ip, stage:"PING", progress:100, status:"failed", message:"ping failed"}` |
-| port check, per IP open | `{type:"progress", ip, stage:"PORT", progress:66.66, status:"ok"}` |
+| port check, per IP open (LINUX/WINRM only) | `{type:"progress", ip, stage:"PORT", progress:66.66, status:"ok"}` |
 | port check, per IP closed | `{type:"progress", ip, stage:"PORT", progress:100, status:"failed", message:"port not reachable"}` |
 | each plugin result line (`ResponseProcessor`) | `{type:"progress", ip, stage:"PLUGIN", progress:100, status:"COMPLETED"\|"FAILED", message}` |
 | profile completes (`EVENT_COMPLETION`) | `{type:"state", status:"COMPLETED"}` |
@@ -76,8 +105,8 @@ Notes:
   `(ip, credential)`. The UI treats the first `COMPLETED` per IP as terminal;
   persisted upsert remains source of truth.
 - Publishes are fire-and-forget; event publishing must never fail a run.
-- Existing behavior unchanged: `plugin_type` still hardcoded `LINUX`; dead/closed
-  IPs never reach the plugin; run endpoint still returns 200 immediately.
+- Existing behavior unchanged: dead/closed IPs never reach the plugin; run
+  endpoint still returns 200 immediately.
 
 ## UI (NMSLITE_UI)
 
@@ -87,11 +116,17 @@ Notes:
 |---|---|
 | `/` | Slim dashboard: Total devices / Up / Down count cards (from per-job availability `is_up`; no averaging) + quick links. |
 | `/discovery` | List (unchanged columns). "New" navigates to `/discovery/new` (drawer deleted). |
-| `/discovery/new`, `/discovery/:id/edit` | One full-page form: name; target **type selector (IP / IP Range / CIDR)** with per-type zod validation; port; credential multi-select. Wire format unchanged (`ip.address` dotted key — backend parses all three shapes). |
+| `/discovery/new`, `/discovery/:id/edit` | One full-page form: name; **device type selector (LINUX / SNMP / WINRM)** which sets the default port (22 / 161 / 5985) and filters the credential multi-select to matching `system_type`; target **type selector (IP / IP Range / CIDR)** with per-type zod validation; port; credentials. Wire format: existing `ip.address` dotted key + new `plugin_type`. |
 | `/discovery/:id` | Profile detail: field summary, Edit / Delete / **Run**. Run → navigate to progress. |
-| `/discovery/:id/progress` | Full-page live view: overall progress bar + %, stat tiles (Total / Discovered / Failed), per-IP table — stage chip (Ping → Port → Plugin), per-row 33/66/100 bar, failure message. Auto-navigate to result on `COMPLETED` state event. |
+| `/discovery/:id/progress` | Full-page live view: overall progress bar + %, stat tiles (Total / Discovered / Failed), per-IP table — stage chips adapt to type (Ping → Port → Plugin for LINUX/WINRM; Ping → Plugin for SNMP), per-row progress bar, failure message. Auto-navigate to result on `COMPLETED` state event. |
 | `/discovery/:id/result` | Persisted result table (moved from old detail page), keeps checkbox → Provision-selected flow. |
 | `/provisioning/:id` | MetricConfigPanel → MetricCharts → **new PolledDataGrid** (timestamp, metric type, values; paginated, newest first) → AvailabilityPanel. |
+
+### Credentials form
+
+The credential create/edit form becomes type-driven: choosing `system_type`
+LINUX/WINRM shows username + password fields (as today); SNMP shows a single
+**community string** field (version fixed to 2c, not shown).
 
 ### Eventbus client
 
@@ -125,7 +160,11 @@ drift).
 - `/eventbus` rejects missing/invalid token, accepts valid.
 - Discovery run publishes the expected event sequence on `nms.discovery.<id>`
   (assert by consuming the event bus in-process; no SockJS client needed).
-- `pingCheck` / `portCheck` unit tests for stage outputs.
+- `pingCheck` / `portCheck` unit tests for stage outputs; SNMP runs skip the
+  port stage (event sequence has no PORT events).
+- Per-`system_type` credential validation (SNMP community accepted, user/password
+  rejected for SNMP and vice versa); envelope carries the profile's `plugin_type`
+  and the right credential shape per type.
 
 **UI (Vitest + RTL + MSW; eventbus module mocked):**
 - Per-type target validation schemas.
@@ -135,5 +174,5 @@ drift).
 
 ## Out of scope
 
-CSV target upload, abort-discovery, per-user event addresses, SNMP/WinRM
-discovery (plugin_type stays LINUX), removing the backend availability feature.
+CSV target upload, abort-discovery, per-user event addresses, SNMPv3
+credentials, removing the backend availability feature.
