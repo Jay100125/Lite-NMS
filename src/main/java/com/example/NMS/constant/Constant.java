@@ -101,6 +101,9 @@ public class Constant {
 
     public static final String REQUEST_TYPE = "request.type";
 
+    /** Per-run discovery progress address prefix; full address is nms.discovery.<discoveryId>. */
+    public static final String DISCOVERY_EVENT_ADDRESS_PREFIX = "nms.discovery.";
+
     /** Always-present discriminator on engine result lines (v2 spec §4.2). */
     public static final String EVENT_TYPE = "event_type";
 
