@@ -18,8 +18,10 @@ class PollingEnvelopeTest
     @Test
     void buildsPollEnvelopeWithDecryptedCreds()
     {
+        // cred_data is stored with the {"user","password"} shape (see Credential create
+        // validation); buildEnvelope remaps it to the engine's {"username","password"}.
         var credCipher = CryptoUtil.encrypt(
-            new JsonObject().put(USERNAME, "admin").put(PASSWORD, "s3cr3t").encode());
+            new JsonObject().put(USER, "admin").put(PASSWORD, "s3cr3t").encode());
 
         var job = new JsonObject()
             .put(JOB_ID, 7L)
@@ -53,7 +55,7 @@ class PollingEnvelopeTest
     @Test
     void oneTargetPerJob()
     {
-        var cipher = CryptoUtil.encrypt(new JsonObject().put(USERNAME, "u").put(PASSWORD, "p").encode());
+        var cipher = CryptoUtil.encrypt(new JsonObject().put(USER, "u").put(PASSWORD, "p").encode());
 
         var jobs = new JsonArray();
         for (int i = 0; i < 3; i++)
