@@ -10,12 +10,16 @@ import io.vertx.core.Promise;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.auth.PubSecKeyOptions;
+import io.vertx.ext.auth.authentication.TokenCredentials;
 import io.vertx.ext.auth.jwt.JWTAuth;
 import io.vertx.ext.auth.jwt.JWTAuthOptions;
+import io.vertx.ext.bridge.PermittedOptions;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.CorsHandler;
 import io.vertx.ext.web.handler.JWTAuthHandler;
+import io.vertx.ext.web.handler.sockjs.SockJSBridgeOptions;
+import io.vertx.ext.web.handler.sockjs.SockJSHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -101,6 +105,36 @@ public class Server extends AbstractVerticle
                 JWTAuthHandler.create(jwtAuth).handle(ctx);
             }
         });
+
+        // SockJS cannot send an Authorization header; the bridge authenticates via
+        // ?access_token=<jwt> validated against the same JWTAuth provider as /api.
+        router.route("/eventbus/*").handler(context ->
+        {
+            var token = context.request().getParam("access_token");
+
+            if (token == null || token.isBlank())
+            {
+                context.fail(401);
+
+                return;
+            }
+
+            jwtAuth.authenticate(new TokenCredentials(token))
+                .onSuccess(user ->
+                {
+                    context.setUser(user);
+
+                    context.next();
+                })
+                .onFailure(err -> context.fail(401));
+        });
+
+        // Outbound-only bridge: the UI may subscribe to per-run discovery progress
+        // addresses; no inbound addresses are permitted at all.
+        var bridgeOptions = new SockJSBridgeOptions()
+            .addOutboundPermitted(new PermittedOptions().setAddressRegex("nms\\.discovery\\.[0-9]+"));
+
+        router.route("/eventbus/*").subRouter(SockJSHandler.create(vertx).bridge(bridgeOptions));
 
         // Mount sub-routers to the main router
         router.route().subRouter(authRoute);
