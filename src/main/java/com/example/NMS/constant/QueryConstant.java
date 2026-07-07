@@ -128,7 +128,7 @@ public class QueryConstant
 
     public static final String INSERT_PROVISIONING_AND_METRICS = """
     WITH input_ips AS (
-        SELECT jsonb_array_elements_text($2::jsonb) AS ip
+        SELECT jsonb_array_elements_text($2::text::jsonb) AS ip
     ),
     discovery_validation AS (
         SELECT
@@ -165,15 +165,15 @@ public class QueryConstant
         RETURNING id AS provisioning_job_id, credential_profile_id, plugin_type, ip, port
     ),
     metric_names AS (
-        SELECT name
+        SELECT name, plugin_types
         FROM (VALUES
-            ('CPU'::metric_name),
-            ('MEMORY'::metric_name),
-            ('DISK'::metric_name),
-            ('UPTIME'::metric_name),
-            ('NETWORK'::metric_name),
-            ('PROCESS'::metric_name)
-        ) AS metrics (name)
+            ('CPU'::metric_name,     ARRAY['LINUX','WINRM']),
+            ('MEMORY'::metric_name,  ARRAY['LINUX','WINRM']),
+            ('DISK'::metric_name,    ARRAY['LINUX','WINRM']),
+            ('UPTIME'::metric_name,  ARRAY['LINUX','SNMP']),
+            ('NETWORK'::metric_name, ARRAY['LINUX']),
+            ('PROCESS'::metric_name, ARRAY['LINUX'])
+        ) AS metrics (name, plugin_types)
     ),
     inserted_metrics AS (
         INSERT INTO metrics (provisioning_job_id, name, plugin_type, polling_interval, is_enabled)
@@ -184,7 +184,7 @@ public class QueryConstant
             300,
             TRUE
         FROM inserted_provisioning_jobs pj
-        CROSS JOIN metric_names mn
+        JOIN metric_names mn ON pj.plugin_type = ANY(mn.plugin_types)
         RETURNING metric_id, provisioning_job_id, name
     )
     SELECT
