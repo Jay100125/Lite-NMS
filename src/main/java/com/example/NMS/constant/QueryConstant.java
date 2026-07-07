@@ -35,9 +35,9 @@ public class QueryConstant
 
     public static final String DELETE_DISCOVERY_CREDENTIALS = "DELETE FROM discovery_credential_mapping WHERE discovery_id = $1";
 
-    public static final String INSERT_DISCOVERY = "INSERT INTO discovery_profiles (discovery_profile_name, ip, port, status) VALUES ($1, $2, $3, 'PENDING') RETURNING id";
+    public static final String INSERT_DISCOVERY = "INSERT INTO discovery_profiles (discovery_profile_name, ip, port, plugin_type, status) VALUES ($1, $2, $3, $4, 'PENDING') RETURNING id";
 
-    public static final String UPDATE_DISCOVERY = "UPDATE discovery_profiles SET discovery_profile_name = $1, ip = $2, port = $3, status = 'PENDING' WHERE id = $4 RETURNING id";
+    public static final String UPDATE_DISCOVERY = "UPDATE discovery_profiles SET discovery_profile_name = $1, ip = $2, port = $3, plugin_type = $4, status = 'PENDING' WHERE id = $5 RETURNING id";
 
     public static final String SET_DISCOVERY_STATUS = "UPDATE discovery_profiles SET status = $1 WHERE id = $2 RETURNING id";
 
@@ -100,6 +100,7 @@ public class QueryConstant
                       dp.ip AS ip,
                       dp.status AS status,
                       dp.port AS port,
+                      dp.plugin_type AS plugin_type,
                       ARRAY_AGG(
                           JSON_BUILD_OBJECT(
                               'id', cp.id,
@@ -111,7 +112,7 @@ public class QueryConstant
                   LEFT JOIN discovery_credential_mapping dc ON dp.id = dc.discovery_id
                   LEFT JOIN credential_profile cp ON dc.credential_profile_id = cp.id
                   WHERE dp.id = $1
-                  GROUP BY dp.id, dp.discovery_profile_name, dp.ip, dp.status, dp.port;""";
+                  GROUP BY dp.id, dp.discovery_profile_name, dp.ip, dp.status, dp.port, dp.plugin_type;""";
 
     public static final String GET_DISCOVERY_RESULTS = "SELECT * FROM discovery_result WHERE discovery_id = $1";
 

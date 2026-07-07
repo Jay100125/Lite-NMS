@@ -35,4 +35,9 @@ class SchemaMigrationTest extends PgTestBase {
             .execute().toCompletionStage().toCompletableFuture().get();
         assertEquals(1, rs.rowCount());
     }
+
+    @Test
+    void discoveryProfilesHasPluginType() throws Exception {
+        assertTrue(columnExists("discovery_profiles", "plugin_type"));
+    }
 }

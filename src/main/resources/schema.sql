@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS discovery_profiles (
         CHECK (status IN ('PENDING','RUNNING','COMPLETED','FAILED'))
 );
 
+ALTER TABLE discovery_profiles ADD COLUMN IF NOT EXISTS plugin_type VARCHAR(20) NOT NULL DEFAULT 'LINUX' CHECK (plugin_type IN ('LINUX','SNMP','WINRM'));
+
 CREATE TABLE IF NOT EXISTS discovery_credential_mapping (
     discovery_id INTEGER NOT NULL REFERENCES discovery_profiles(id) ON DELETE CASCADE,
     credential_profile_id INTEGER NOT NULL REFERENCES credential_profile(id) ON DELETE CASCADE,

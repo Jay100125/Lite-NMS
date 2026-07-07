@@ -133,6 +133,17 @@ public class Constant {
 
     public static final int BATCH_SIZE = 25;
 
+    public static final String PLUGIN_LINUX = "LINUX";
+
+    public static final String PLUGIN_SNMP = "SNMP";
+
+    public static final String PLUGIN_WINRM = "WINRM";
+
+    public static final String COMMUNITY = "community";
+
+    public static final String SNMP_VERSION = "version";
+
+    public static final String SNMP_V2C = "2c";
 
 }
 
