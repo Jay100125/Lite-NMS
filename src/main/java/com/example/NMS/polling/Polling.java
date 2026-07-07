@@ -224,14 +224,12 @@ public class Polling extends AbstractVerticle
         {
             var job = (JsonObject) entry;
 
-            // cred_data is stored as {"user","password"}; the engine's SSH plugin expects
-            // {"username","password"} — remap exactly as the discovery path does, otherwise
-            // the engine receives no username and auth fails ("attempted methods [none password]").
+            // cred_data is stored encrypted; decrypt and shape per plugin type: SNMP
+            // passes {version, community} through; SSH/WinRM map stored "user" to
+            // the engine's "username" key.
             var plain = new JsonObject(CryptoUtil.decrypt(job.getString(CRED_DATA)));
 
-            var credential = new JsonObject()
-                .put(USERNAME, plain.getString(USER))
-                .put(PASSWORD, plain.getString(PASSWORD));
+            var credential = PluginEnvelope.credential(job.getString(PLUGIN_TYPE), plain);
 
             targets.add(PluginEnvelope.target(
                 UUID.randomUUID().toString(),

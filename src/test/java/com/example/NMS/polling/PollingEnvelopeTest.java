@@ -72,4 +72,27 @@ class PollingEnvelopeTest
         var envelope = Polling.buildEnvelope(jobs);
         assertEquals(3, envelope.getJsonArray(TARGETS).size());
     }
+
+    @Test
+    void snmpJobsCarryCommunityCredential()
+    {
+        var cipher = CryptoUtil.encrypt(
+            new JsonObject().put(SNMP_VERSION, SNMP_V2C).put(COMMUNITY, "public").encode());
+
+        var job = new JsonObject()
+            .put(JOB_ID, 9L)
+            .put(PLUGIN_TYPE, PLUGIN_SNMP)
+            .put(IP, "10.0.0.9")
+            .put(PORT, 161)
+            .put(CRED_DATA, cipher)
+            .put("metrics", new JsonArray().add("UPTIME"));
+
+        var envelope = Polling.buildEnvelope(new JsonArray().add(job));
+
+        var credential = envelope.getJsonArray(TARGETS).getJsonObject(0).getJsonObject("credential");
+
+        assertEquals(SNMP_V2C, credential.getString(SNMP_VERSION));
+        assertEquals("public", credential.getString(COMMUNITY));
+        assertFalse(credential.containsKey(USERNAME));
+    }
 }
