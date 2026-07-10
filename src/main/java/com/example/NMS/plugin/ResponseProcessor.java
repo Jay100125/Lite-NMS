@@ -160,11 +160,7 @@ public class ResponseProcessor extends AbstractVerticle
                 if (metricsData != null)
                 {
                     metricsData.fieldNames().forEach(metric ->
-                        batchParams.add(new JsonArray()
-                            .add(jobId)
-                            .add(metric)
-                            .add(metricsData.getJsonObject(metric))
-                            .add(timestamp)));
+                        addMetricRows(batchParams, jobId, metric, metricsData.getJsonObject(metric), timestamp));
                 }
             }
             else
@@ -180,6 +176,53 @@ public class ResponseProcessor extends AbstractVerticle
 
         vertx.eventBus().send(DB_EXECUTE_BATCH_QUERY, batchQuery);
 
+    }
+
+    private static final String INSTANCES = "instances";
+
+    private static final String INSTANCE = "instance";
+
+    /**
+     * Emits one host row (instance NULL) for a category's scalar counters, plus one row per
+     * entry in the optional "instances" array (per-core/volume/interface/process). Each row
+     * matches INSERT_POLLED_DATA params: (job_id, metric_type, instance, data, timestamp).
+     */
+    private void addMetricRows(JsonArray batchParams, Long jobId, String metric, JsonObject categoryData, Long timestamp)
+    {
+        if (categoryData == null)
+        {
+            return;
+        }
+
+        var instances = categoryData.getJsonArray(INSTANCES);
+
+        // Host-level counters: the category object minus any instances array.
+        var hostData = categoryData.copy();
+
+        hostData.remove(INSTANCES);
+
+        batchParams.add(new JsonArray()
+            .add(jobId)
+            .add(metric)
+            .addNull()                 // host row: instance is NULL
+            .add(hostData)
+            .add(timestamp));
+
+        if (instances != null)
+        {
+            instances.forEach(entry ->
+            {
+                if (entry instanceof JsonObject instanceData)
+                {
+                    batchParams.add(new JsonArray()
+                        .add(jobId)
+                        .add(metric)
+                        .add(instanceData.getString(INSTANCE, "unknown"))
+                        .add(instanceData)
+                        .add(timestamp));
+                }
+            });
+        }
     }
 
     private void storeDiscoveryResults(JsonObject data)

@@ -64,6 +64,13 @@ CREATE TABLE IF NOT EXISTS polled_data (
     polled_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Per-instance metrics (per-core, per-volume, per-interface, per-process) share the
+-- parent category in metric_type and are distinguished by the instance column.
+-- Host-level rows keep instance NULL.
+ALTER TABLE polled_data ADD COLUMN IF NOT EXISTS instance VARCHAR(255);
+CREATE INDEX IF NOT EXISTS idx_polled_data_job_metric_instance
+    ON polled_data (job_id, metric_type, instance, polled_at);
+
 CREATE TABLE IF NOT EXISTS device_availability (
     provisioning_job_id INTEGER PRIMARY KEY REFERENCES provisioning_jobs(id) ON DELETE CASCADE,
     is_up BOOLEAN NOT NULL DEFAULT FALSE,

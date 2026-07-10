@@ -75,8 +75,8 @@ public class QueryConstant
     // $4 is the engine's epoch-millis timestamp (a bigint); polled_at is `timestamp without time zone`,
     // so convert in SQL rather than passing a raw Long the pg client cannot coerce to a temporal.
     public static final String INSERT_POLLED_DATA =
-        "INSERT INTO polled_data (job_id, metric_type, data, polled_at) " +
-            "VALUES ($1, $2, $3::jsonb, to_timestamp($4 / 1000.0)) returning id";
+        "INSERT INTO polled_data (job_id, metric_type, instance, data, polled_at) " +
+            "VALUES ($1, $2, $3, $4::jsonb, to_timestamp($5 / 1000.0)) returning id";
 
     public static final String GET_ALL_PROVISIONING_JOBS =
         "SELECT pj.*, cp.credential_name, cp.system_type " +
@@ -88,11 +88,11 @@ public class QueryConstant
         "DELETE FROM provisioning_jobs WHERE id = $1 RETURNING id";
 
     public static final String GET_ALL_POLLED_DATA = """
-            SELECT id, job_id, metric_type, data, polled_at
+            SELECT id, job_id, metric_type, instance, data, polled_at
             FROM polled_data""";
 
     public static final String GET_POLLED_DATA_BY_JOB_ID = """
-            SELECT id, job_id, metric_type, data, polled_at
+            SELECT id, job_id, metric_type, instance, data, polled_at
             FROM polled_data
             WHERE job_id = $1
             ORDER BY polled_at DESC""";
