@@ -47,9 +47,11 @@ public class Availability extends AbstractVerticle
 
             var isUp = SUCCESS.equals(data.getString(STATUS));
 
+            // $1 job_id, $2 is_up sample, $3 down threshold — the SQL applies the
+            // consecutive-failure damping so is_up doesn't flap on a single miss.
             var query = new JsonObject()
                 .put(QUERY, QueryConstant.UPSERT_AVAILABILITY)
-                .put(PARAMS, new JsonArray().add(jobId).add(isUp ? 1 : 0).add(isUp));
+                .put(PARAMS, new JsonArray().add(jobId).add(isUp).add(AVAILABILITY_DOWN_THRESHOLD));
 
             vertx.eventBus().send(DB_EXECUTE_QUERY, query);
         });

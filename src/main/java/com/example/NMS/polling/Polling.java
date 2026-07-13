@@ -10,6 +10,7 @@ import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -165,6 +166,25 @@ public class Polling extends AbstractVerticle
                 if (res.succeeded())
                 {
                     var reachableIps = res.result();
+
+                    // Availability is ping-driven: emit exactly one sample per device
+                    // (distinct provisioning_job_id) this cycle — Up when its IP answered
+                    // the ping, Down otherwise — for EVERY batched device, including the
+                    // unreachable ones whose metric plugins we skip below. The Down
+                    // threshold / flap-damping lives in the UPSERT_AVAILABILITY query.
+                    var deviceIps = new LinkedHashMap<Long, String>();
+
+                    for (var entry : jobs)
+                    {
+                        var job = (JsonObject) entry;
+
+                        deviceIps.putIfAbsent(job.getLong(PROVISIONING_JOB_ID), job.getString(IP));
+                    }
+
+                    deviceIps.forEach((deviceJobId, ip) ->
+                        vertx.eventBus().send(AVAILABILITY_SAMPLE, new JsonObject()
+                            .put(JOB_ID, deviceJobId)
+                            .put(STATUS, reachableIps.contains(ip) ? SUCCESS : FAILURE)));
 
                     // Collect the cache jobs whose device is reachable, shaped for the v2 envelope.
                     var dueJobs = new JsonArray();

@@ -54,12 +54,7 @@ public class ResponseProcessor extends AbstractVerticle
             switch (classify(data))
             {
                 case EVENT_DISCOVERY -> storeDiscoveryResults(data);
-                case EVENT_POLL ->
-                {
-                    bufferPollResult(data);
-
-                    publishAvailabilitySample(data);
-                }
+                case EVENT_POLL -> bufferPollResult(data);
                 default -> LOGGER.error("Unknown event_type on result: {}", data.getString(REQUEST_ID));
             }
         });
@@ -108,14 +103,6 @@ public class ResponseProcessor extends AbstractVerticle
             vertx.cancelTimer(timerId);
         }
         stopPromise.complete();
-    }
-
-    /** Publishes a single availability sample per poll result, kept separate from the STORAGE_RESULTS batching consumer. */
-    private void publishAvailabilitySample(JsonObject data)
-    {
-        vertx.eventBus().publish(AVAILABILITY_SAMPLE, new JsonObject()
-            .put(JOB_ID, data.getLong(JOB_ID))
-            .put(STATUS, data.getString(STATUS)));
     }
 
     private void bufferPollResult(JsonObject data)

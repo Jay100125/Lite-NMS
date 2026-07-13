@@ -131,8 +131,11 @@ public class Constant {
 
     public static final String STORAGE_RESULTS = "storage.results";
 
-    /** Dedicated address for per-poll availability samples, published by ResponseProcessor so it doesn't compete with the STORAGE_RESULTS consumer. */
+    /** Dedicated address for availability samples (one per device per poll cycle, emitted from Polling's ping gate). */
     public static final String AVAILABILITY_SAMPLE = "availability.sample";
+
+    /** A device flips Up→Down only after this many consecutive failed ping samples (flap damping); one success resets the count. */
+    public static final int AVAILABILITY_DOWN_THRESHOLD = 3;
 
     public static final int BATCH_SIZE = 25;
 

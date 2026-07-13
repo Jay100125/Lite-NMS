@@ -26,6 +26,7 @@ class SchemaMigrationTest extends PgTestBase {
     @Test
     void deviceAvailabilityTableExists() throws Exception {
         assertTrue(columnExists("device_availability", "availability_pct"));
+        assertTrue(columnExists("device_availability", "consecutive_failures"));
     }
 
     @Test

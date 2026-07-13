@@ -77,8 +77,12 @@ CREATE TABLE IF NOT EXISTS device_availability (
     last_change TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     up_samples BIGINT NOT NULL DEFAULT 0,
     total_samples BIGINT NOT NULL DEFAULT 0,
-    availability_pct NUMERIC(5,2) NOT NULL DEFAULT 0
+    availability_pct NUMERIC(5,2) NOT NULL DEFAULT 0,
+    -- Consecutive failed pings before a device flips to Down (flap damping), reset to 0 on any success
+    consecutive_failures INTEGER NOT NULL DEFAULT 0
 );
+-- Idempotent add for databases created before consecutive_failures existed
+ALTER TABLE device_availability ADD COLUMN IF NOT EXISTS consecutive_failures INTEGER NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
