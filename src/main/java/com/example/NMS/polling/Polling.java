@@ -1,5 +1,7 @@
 package com.example.NMS.polling;
 
+import com.example.NMS.plugin.PluginEnvelope;
+import com.example.NMS.util.CryptoUtil;
 import com.example.NMS.utility.Utility;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
@@ -8,7 +10,10 @@ import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static com.example.NMS.constant.Constant.*;
@@ -145,12 +150,13 @@ public class Polling extends AbstractVerticle
                 .collect(Collectors.toList());
 
             // Use executeBlocking to avoid blocking the event loop
-            vertx.<JsonArray>executeBlocking(promise -> {
+            vertx.<Set<String>>executeBlocking(promise -> {
                 try
                 {
-                    var reachResults = Utility.checkReachability(ips, 22);
-
-                    promise.complete(reachResults);
+                    // Ping-only gate: poll jobs span SSH/SNMP/WinRM, so a TCP :22 check
+                    // would wrongly skip non-SSH devices; per-protocol reachability is the
+                    // engine's job.
+                    promise.complete(Utility.pingCheck(ips));
                 }
                 catch (Exception e)
                 {
@@ -159,49 +165,55 @@ public class Polling extends AbstractVerticle
             }, res -> {
                 if (res.succeeded())
                 {
-                    var reachResults = res.result();
+                    var reachableIps = res.result();
 
-                    var targets = new JsonArray();
+                    // Availability is ping-driven: emit exactly one sample per device
+                    // (distinct provisioning_job_id) this cycle — Up when its IP answered
+                    // the ping, Down otherwise — for EVERY batched device, including the
+                    // unreachable ones whose metric plugins we skip below. The Down
+                    // threshold / flap-damping lives in the UPSERT_AVAILABILITY query.
+                    var deviceIps = new LinkedHashMap<Long, String>();
 
-                    // Process each job individually
+                    for (var entry : jobs)
+                    {
+                        var job = (JsonObject) entry;
+
+                        deviceIps.putIfAbsent(job.getLong(PROVISIONING_JOB_ID), job.getString(IP));
+                    }
+
+                    deviceIps.forEach((deviceJobId, ip) ->
+                        vertx.eventBus().send(AVAILABILITY_SAMPLE, new JsonObject()
+                            .put(JOB_ID, deviceJobId)
+                            .put(STATUS, reachableIps.contains(ip) ? SUCCESS : FAILURE)));
+
+                    // Collect the cache jobs whose device is reachable, shaped for the v2 envelope.
+                    var dueJobs = new JsonArray();
+
                     for (var job : jobs)
                     {
                         var ip = job.getString(IP);
 
-                        // Find reachability result for this IP
-                        var reachResult = reachResults.stream()
-                            .map(obj -> (JsonObject) obj)
-                            .filter(resObj -> resObj.getString(IP).equals(ip))
-                            .findFirst()
-                            .orElse(null);
-
-                        if (reachResult != null && reachResult.getBoolean("reachable") && reachResult.getBoolean("port_open"))
+                        if (reachableIps.contains(ip))
                         {
-                            targets.add(new JsonObject()
-                                .put(IP_ADDRESS, ip)
+                            dueJobs.add(new JsonObject()
+                                .put(JOB_ID, job.getLong(PROVISIONING_JOB_ID))
+                                .put(PLUGIN_TYPE, job.getString(PROTOCOL).toUpperCase())
+                                .put(IP, ip)
                                 .put(PORT, job.getInteger(PORT))
-                                .put(USER, job.getJsonObject(CRED_DATA).getString(USER))
-                                .put(PASSWORD, job.getJsonObject(CRED_DATA).getString(PASSWORD))
-                                .put(PROVISIONING_JOB_ID, job.getLong(PROVISIONING_JOB_ID))
-                                .put(METRIC_NAME, job.getString(METRIC_NAME))
-                                .put(PROTOCOL, job.getString(PROTOCOL))
-                                .put(PLUGIN_TYPE, LINUX + job.getString(METRIC_NAME).toLowerCase()));
+                                .put(CRED_DATA, job.getString(CRED_DATA))
+                                .put("metrics", new JsonArray().add(job.getString(METRIC_NAME))));
                         }
                     }
 
-                    if (targets.isEmpty())
+                    if (dueJobs.isEmpty())
                     {
                         LOGGER.info("No reachable targets for polling");
                         return;
                     }
 
-                    var pluginInput = new JsonObject()
-                        .put(REQUEST_TYPE, POLLING)
-                        .put(TARGETS, targets);
+                    vertx.eventBus().send(PLUGIN_EXECUTE, buildEnvelope(dueJobs));
 
-                    vertx.eventBus().send(PLUGIN_EXECUTE, pluginInput);
-
-                    LOGGER.info("Sent polling plugin input: {}", pluginInput.encodePrettily());
+                    LOGGER.info("Sent polling plugin input with {} target(s)", dueJobs.size());
                 }
                 else
                 {
@@ -213,6 +225,43 @@ public class Polling extends AbstractVerticle
         {
             LOGGER.error("Polling failed: {}", exception.getMessage());
         }
+    }
+
+    /**
+     * Builds the v2 "poll" engine envelope (spec §4) from a list of due jobs.
+     * Each job carries an encrypted {@code cred_data} string that is decrypted here
+     * so credentials never live in plaintext in the cache; every job becomes exactly
+     * one target with its metrics preserved.
+     *
+     * @param dueJobs jobs shaped as {@code {job_id, plugin_type, ip, port, cred_data, metrics}}.
+     * @return the {@code {version, event_type:"poll", targets:[...]}} envelope.
+     */
+    public static JsonObject buildEnvelope(JsonArray dueJobs)
+    {
+        var targets = new JsonArray();
+
+        for (var entry : dueJobs)
+        {
+            var job = (JsonObject) entry;
+
+            // cred_data is stored encrypted; decrypt and shape per plugin type: SNMP
+            // passes {version, community} through; SSH/WinRM map stored "user" to
+            // the engine's "username" key.
+            var plain = new JsonObject(CryptoUtil.decrypt(job.getString(CRED_DATA)));
+
+            var credential = PluginEnvelope.credential(job.getString(PLUGIN_TYPE), plain);
+
+            targets.add(PluginEnvelope.target(
+                UUID.randomUUID().toString(),
+                job.getLong(JOB_ID),
+                job.getString(PLUGIN_TYPE),
+                job.getString(IP),
+                job.getInteger(PORT),
+                credential,
+                job.getJsonArray("metrics")));
+        }
+
+        return PluginEnvelope.build(EVENT_POLL, targets);
     }
 
 }

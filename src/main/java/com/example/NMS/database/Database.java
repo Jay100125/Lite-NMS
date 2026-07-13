@@ -6,6 +6,7 @@ import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
+import io.vertx.pgclient.PgException;
 import io.vertx.sqlclient.Row;
 import io.vertx.sqlclient.RowSet;
 import io.vertx.sqlclient.SqlClient;
@@ -162,6 +163,20 @@ public class Database extends AbstractVerticle
      *
      * @return A Future that completes when schema initialization is done or fails.
      */
+    /** True when a DDL statement failed only because the object already exists (idempotent re-run). */
+    private static boolean isAlreadyExists(Throwable error)
+    {
+        if (error instanceof PgException pg)
+        {
+            var code = pg.getSqlState();
+
+            // 42710 duplicate_object (e.g. type/enum), 42P07 duplicate_table
+            return "42710".equals(code) || "42P07".equals(code);
+        }
+
+        return false;
+    }
+
     private Future<Void> initializeSchema()
     {
         var promise = Promise.<Void>promise();
@@ -190,7 +205,11 @@ public class Database extends AbstractVerticle
                 // Split schema into individual DDL statements
                 var ddlStatements = schema.split(";");
 
-                var executionFutures = new ArrayList<Future>();
+                // Execute DDL statements SEQUENTIALLY (FK-safe): a table with a foreign key
+                // must be created after its referenced table, and `metrics` needs the
+                // `metric_name` type to exist first. Running these concurrently
+                // (CompositeFuture.all) races the dependencies and fails intermittently.
+                Future<Void> chain = Future.succeededFuture();
 
                 for (var statement : ddlStatements)
                 {
@@ -198,30 +217,33 @@ public class Database extends AbstractVerticle
 
                     if (!trimmedStatement.isEmpty())
                     {
-                        // Execute each DDL statement
-                        var statementPromise = Promise.<Void>promise();
+                        chain = chain.compose(ignored ->
+                        {
+                            LOGGER.debug("Executing DDL: {}", trimmedStatement);
 
-                        LOGGER.debug("Executing DDL: {}", trimmedStatement);
+                            return client.query(trimmedStatement).execute()
+                                .<Void>mapEmpty()
+                                .recover(error ->
+                                {
+                                    // Idempotent boot: CREATE TYPE has no IF NOT EXISTS, so a
+                                    // restart against an already-migrated DB would otherwise fail.
+                                    // Tolerate "already exists" (duplicate_object / duplicate_table).
+                                    if (isAlreadyExists(error))
+                                    {
+                                        LOGGER.debug("Skipping already-applied DDL: {}", trimmedStatement);
 
-                        client.query(trimmedStatement).execute()
-                            .onSuccess(result ->
-                            {
-                                LOGGER.debug("Successfully executed DDL: {}", trimmedStatement);
+                                        return Future.succeededFuture();
+                                    }
 
-                                statementPromise.complete();
-                            })
-                            .onFailure(error ->
-                            {
-                                LOGGER.error("Failed to execute DDL: {} - Error: {}", trimmedStatement, error.getMessage());
+                                    LOGGER.error("Failed to execute DDL: {} - Error: {}", trimmedStatement, error.getMessage());
 
-                                statementPromise.fail(error);
-                            });
-                        executionFutures.add(statementPromise.future());
+                                    return Future.failedFuture(error);
+                                });
+                        });
                     }
                 }
 
-                // Wait for all DDL statements to complete
-                CompositeFuture.all((executionFutures))
+                chain
                     .onSuccess(result ->
                     {
                         LOGGER.info("All DDL statements processed.");

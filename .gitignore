@@ -183,3 +183,10 @@ nbdist/
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
+
+### Lite-NMS ###
+target/
+.idea/
+output.txt
+jayP
+plugin/Lite_NMS_Plugin

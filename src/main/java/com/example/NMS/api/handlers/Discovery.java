@@ -1,6 +1,7 @@
 package com.example.NMS.api.handlers;
 
 import com.example.NMS.constant.QueryConstant;
+import com.example.NMS.util.CryptoUtil;
 import com.example.NMS.utility.APIUtils;
 import com.example.NMS.utility.Validator;
 import io.vertx.core.Future;
@@ -63,7 +64,7 @@ public class Discovery extends AbstractAPI
         try
         {
 
-            var fields = new String[]{DISCOVERY_PROFILE_NAME, CREDENTIAL_PROFILE_ID, IP_ADDRESS, PORT};
+            var fields = new String[]{DISCOVERY_PROFILE_NAME, CREDENTIAL_PROFILE_ID, IP_ADDRESS, PORT, PLUGIN_TYPE};
 
             if (Validator.checkRequestFields(context, fields, true))
             {
@@ -82,6 +83,8 @@ public class Discovery extends AbstractAPI
 
             var port = body.getInteger(PORT);
 
+            var pluginType = body.getString(PLUGIN_TYPE);
+
             if (discoveryName.isEmpty() || credentialIds.isEmpty() || ip.isEmpty() || port <= 0 || port >= 65536)
             {
                 APIUtils.sendError(context, 400, "Missing field or invalid data");
@@ -89,12 +92,33 @@ public class Discovery extends AbstractAPI
                 return;
             }
 
+            if (!Credential.VALID_PLUGIN_TYPES.contains(pluginType))
+            {
+                APIUtils.sendError(context, 400, "plugin_type must be one of LINUX, SNMP, WINRM");
+
+                return;
+            }
+
+            // Pre-check: every selected credential's system_type must match the profile's plugin_type.
+            var mismatchQuery = new JsonObject()
+                .put(QUERY, QueryConstant.COUNT_MISMATCHED_CREDENTIALS)
+                .put(PARAMS, new JsonArray().add(credentialIds.encode()).add(pluginType));
+
             // Insert discovery profile into database.
             var query = new JsonObject()
                 .put(QUERY, QueryConstant.INSERT_DISCOVERY)
-                .put(PARAMS, new JsonArray().add(discoveryName).add(ip).add(port));
+                .put(PARAMS, new JsonArray().add(discoveryName).add(ip).add(port).add(pluginType));
 
-            executeQuery(query)
+            executeQuery(mismatchQuery)
+                .compose(check ->
+                {
+                    if (check.getJsonObject(0).getInteger("mismatched") > 0)
+                    {
+                        return Future.failedFuture("credential type mismatch");
+                    }
+
+                    return executeQuery(query);
+                })
                 .compose(result ->
                 {
                     if(result.isEmpty())
@@ -126,6 +150,10 @@ public class Discovery extends AbstractAPI
                         var result = queryResult.result();
 
                         APIUtils.sendSuccess(context, 201, "discovery profile created",new JsonArray().add(result));
+                    }
+                    else if ("credential type mismatch".equals(queryResult.cause().getMessage()))
+                    {
+                        APIUtils.sendError(context, 400, "all credentials must have system_type " + pluginType);
                     }
                     else
                     {
@@ -159,7 +187,7 @@ public class Discovery extends AbstractAPI
                 return;
             }
 
-            var fields = new String[]{DISCOVERY_PROFILE_NAME, CREDENTIAL_PROFILE_ID, IP_ADDRESS, PORT};
+            var fields = new String[]{DISCOVERY_PROFILE_NAME, CREDENTIAL_PROFILE_ID, IP_ADDRESS, PORT, PLUGIN_TYPE};
 
             if (Validator.checkRequestFields(context, fields, true))
             {
@@ -176,12 +204,35 @@ public class Discovery extends AbstractAPI
 
             var port = body.getInteger(PORT);
 
+            var pluginType = body.getString(PLUGIN_TYPE);
+
+            if (!Credential.VALID_PLUGIN_TYPES.contains(pluginType))
+            {
+                APIUtils.sendError(context, 400, "plugin_type must be one of LINUX, SNMP, WINRM");
+
+                return;
+            }
+
+            // Pre-check: every selected credential's system_type must match the profile's plugin_type.
+            var mismatchQuery = new JsonObject()
+                .put(QUERY, QueryConstant.COUNT_MISMATCHED_CREDENTIALS)
+                .put(PARAMS, new JsonArray().add(credentialIds.encode()).add(pluginType));
+
             var existsQuery = new JsonObject()
                 .put(QUERY, QueryConstant.GET_DISCOVERY_BY_ID)
                 .put(PARAMS, new JsonArray().add(id));
 
 
-            executeQuery(existsQuery)
+            executeQuery(mismatchQuery)
+                .compose(check ->
+                {
+                    if (check.getJsonObject(0).getInteger("mismatched") > 0)
+                    {
+                        return Future.failedFuture("credential type mismatch");
+                    }
+
+                    return executeQuery(existsQuery);
+                })
                 .compose(result ->
                 {
                     if (result.isEmpty())
@@ -192,7 +243,7 @@ public class Discovery extends AbstractAPI
                     // Update discovery profile in database
                     var updateQuery = new JsonObject()
                         .put(QUERY, QueryConstant.UPDATE_DISCOVERY)
-                        .put(PARAMS, new JsonArray().add(discoveryName).add(ip).add(port).add(id));
+                        .put(PARAMS, new JsonArray().add(discoveryName).add(ip).add(port).add(pluginType).add(id));
 
                     // Delete existing credential mappings
                     var deleteQuery = new JsonObject()
@@ -227,7 +278,11 @@ public class Discovery extends AbstractAPI
 
                         LOGGER.error("Error updating discovery profile {}: {}", id, error.getMessage());
 
-                        if (error.getMessage().equals("Discovery profile not found"))
+                        if ("credential type mismatch".equals(error.getMessage()))
+                        {
+                            APIUtils.sendError(context, 400, "all credentials must have system_type " + pluginType);
+                        }
+                        else if (error.getMessage().equals("Discovery profile not found"))
                         {
                             APIUtils.sendError(context, 404, "Discovery profile not found");
                         }
@@ -285,6 +340,9 @@ public class Discovery extends AbstractAPI
 
                     var profile = result.getJsonObject(0);
 
+                    // cred_data is encrypted at rest; decrypt into plaintext creds for the engine run.
+                    profile.put("credential", resolveCredentials(profile.getJsonArray("credential")));
+
                     var request = new JsonObject()
                         .put(ID, id)
                         .put("profile", profile);
@@ -307,6 +365,45 @@ public class Discovery extends AbstractAPI
 
             APIUtils.sendError(context, 500, "Internal server error");
         }
+    }
+
+    /**
+     * Decrypts each credential's {@code cred_data} (encrypted at rest) into its stored plaintext
+     * shape plus {@code id}. The stored shape is passed through untouched — {@code {user,password}}
+     * for SSH/WinRM or {@code {version,community}} for SNMP — and {@code PluginEnvelope.credential}
+     * shapes it per plugin type at envelope-build time. Rows without cred_data — e.g. a profile with
+     * no mapped credentials — are skipped.
+     *
+     * @param credentials the aggregated credential rows from {@code GET_BY_RUN_ID}.
+     * @return decrypted credential objects; empty (never null) when there are none.
+     */
+    public static JsonArray resolveCredentials(JsonArray credentials)
+    {
+        var resolved = new JsonArray();
+
+        if (credentials == null)
+        {
+            return resolved;
+        }
+
+        for (var entry : credentials)
+        {
+            var cred = (JsonObject) entry;
+
+            var cipher = cred.getString(CRED_DATA);
+
+            if (cipher == null || cipher.isBlank())
+            {
+                continue;
+            }
+
+            // Decrypted stored shape passes through untouched ({user,password} or
+            // {version,community}); PluginEnvelope.credential shapes it per plugin type
+            // at envelope-build time.
+            resolved.add(new JsonObject(CryptoUtil.decrypt(cipher)).put(ID, cred.getLong(ID)));
+        }
+
+        return resolved;
     }
 
     /**

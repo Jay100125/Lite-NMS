@@ -2,18 +2,6 @@ package com.example.NMS.constant;
 
 public class Constant {
 
-    public static final String DB_HOST = "localhost";
-
-    public static final String DB_NAME = "nms";
-
-    public static final int DB_PORT = 5432;
-
-    public static final String DB_USER = "jay";
-
-    public static final String DB_PASSWORD = "Mind@123";
-
-    public static final String JWT_SECRET = "MySecretKey";
-
     public static final int SERVER_PORT = 8080;
 
     public static final int MAX_WORKER_EXECUTION_TIME = 900;
@@ -26,11 +14,13 @@ public class Constant {
 
     public static final String DISCOVERY_RUN = "discovery.run";
 
-    public static final String DISCOVERY_STATUS_PENDING = "pending";
+    public static final String DISCOVERY_STATUS_PENDING = "PENDING";
 
-    public static final String DISCOVERY_STATUS_RUNNING = "running";
+    public static final String DISCOVERY_STATUS_RUNNING = "RUNNING";
 
-    public static final String DISCOVERY_STATUS_COMPLETED = "completed";
+    public static final String DISCOVERY_STATUS_COMPLETED = "COMPLETED";
+
+    public static final String DISCOVERY_STATUS_FAILED = "FAILED";
 
     public static final String EVENT_COMPLETION = "event.completion";
 
@@ -73,11 +63,13 @@ public class Constant {
 
     public static final String ID = "id";
 
+    public static final String JOB_ID_PATH_PARAM = "jobId";
+
     public static final String PROTOCOL = "protocol";
 
     public static final String LINUX = "linux";
 
-    public static final String PLUGIN_TYPE = "plugin.type";
+    public static final String PLUGIN_TYPE = "plugin_type";
 
     public static final String DISCOVERY_PROFILE_NAME = "discovery_profile_name";
 
@@ -109,6 +101,20 @@ public class Constant {
 
     public static final String REQUEST_TYPE = "request.type";
 
+    /** Per-run discovery progress address prefix; full address is nms.discovery.<discoveryId>. */
+    public static final String DISCOVERY_EVENT_ADDRESS_PREFIX = "nms.discovery.";
+
+    /** Always-present discriminator on engine result lines (v2 spec §4.2). */
+    public static final String EVENT_TYPE = "event_type";
+
+    public static final String JOB_ID = "job_id";
+
+    public static final String REQUEST_ID = "request_id";
+
+    public static final String EVENT_POLL = "poll";
+
+    public static final String EVENT_DISCOVERY = "discovery";
+
     public static final String DISCOVERY = "discovery";
 
     public static final String POLLING = "polling";
@@ -125,8 +131,25 @@ public class Constant {
 
     public static final String STORAGE_RESULTS = "storage.results";
 
+    /** Dedicated address for availability samples (one per device per poll cycle, emitted from Polling's ping gate). */
+    public static final String AVAILABILITY_SAMPLE = "availability.sample";
+
+    /** A device flips Up→Down only after this many consecutive failed ping samples (flap damping); one success resets the count. */
+    public static final int AVAILABILITY_DOWN_THRESHOLD = 3;
+
     public static final int BATCH_SIZE = 25;
 
+    public static final String PLUGIN_LINUX = "LINUX";
+
+    public static final String PLUGIN_SNMP = "SNMP";
+
+    public static final String PLUGIN_WINRM = "WINRM";
+
+    public static final String COMMUNITY = "community";
+
+    public static final String SNMP_VERSION = "version";
+
+    public static final String SNMP_V2C = "2c";
 
 }
 

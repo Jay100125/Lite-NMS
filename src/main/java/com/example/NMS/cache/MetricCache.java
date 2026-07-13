@@ -78,7 +78,7 @@ public class MetricCache implements cache
                             .put(IP, metric.getString(IP))
                             .put(PORT, metric.getInteger(PORT))
                             .put(PROTOCOL, metric.getString(PROTOCOL))
-                            .put(CRED_DATA, metric.getJsonObject(CRED_DATA))
+                            .put(CRED_DATA, metric.getString(CRED_DATA))   // encrypted at rest; decrypted at envelope build
                             .put(ORIGINAL_INTERVAL, metric.getInteger(POLLING_INTERVAL))
                             .put(REMAINING_TIME, metric.getInteger(POLLING_INTERVAL))
                             .put(IS_ENABLED, metric.getBoolean(IS_ENABLED));
